@@ -9,28 +9,16 @@ import {
     } from '@vis.gl/react-google-maps';
 import {MarkerClusterer} from '@googlemaps/markerclusterer';
 import type {Marker} from '@googlemaps/markerclusterer';
-
-type Poi = { key: string, location: google.maps.LatLngLiteral }
-const locations: Poi[] = [
-    {key: 'Luminary by La Terza', location: {lat: 39.2028426, lng: -84.5577283}},
-    {key: 'Bacalls Cafe', location: {lat: 39.2025175, lng: -84.5577855}},
-    {key: 'The Coffee Exchange', location: {lat: 39.1818841, lng: -84.440004}},
-    {key: 'Deeper Roots Coffee', location: {lat: 39.2252124, lng: -84.3575411}},
-    {key: 'Rohs Street Cafe', location: {lat: 39.1276809, lng: -84.5240077}},
-    {key: 'Square Mile Coffee Roasters', location: {lat: 39.2309091, lng: -84.5506915}},
-    {key: 'Carabello Coffee', location: {lat: 39.0885723, lng: -84.4926571}},
-    {key: 'Coffee Emporium', location: {lat: 39.088565, lng: -84.5313728}},
-    {key: '1215 Wine Bar & Coffee Lab', location: {lat: 39.1087445, lng: -84.5199201}},  
-    {key: 'Lookout Joe', location: {lat: 39.1295482, lng: -84.430314}},
-    {key: 'Trailhead Coffee', location: {lat: 39.0902117, lng: -84.4953343}},
-    {key: 'Sidewinder Coffee', location: {lat: 39.1629902, lng: -84.5427382}}
-
-]
+import MarkerWithInfoWindow from '../card/MarkerWithInfoWindow';
+import Workspace from '../../models/Workspace.ts';
+import workspaceLibrary from '../../models/WorkspaceLibrary.ts';
+import locations from '../../data.ts';
 
 
 
 
 export default function MapView() {
+    const workspaces = loadWorkspaceLibrary();
     const mapContainerStyle = { width: '100%', height: '100vh' }; // Ensure the map occupies visible space
 
     return (
@@ -47,14 +35,15 @@ export default function MapView() {
                 onCameraChanged={(ev: MapCameraChangedEvent) => 
                     console.log('camera changed:', ev.detail.center, 'zoom: ', ev.detail.zoom)
                 }
+                reuseMaps={true} // Reuse the map instance when the component unmounts
             >
-                <PoiMarkers pois={locations} />
+                <PoiMarkers spaces={workspaces.spaces} />
             </Map>
         </APIProvider>
     );
 }
 
-const PoiMarkers = (props: {pois: Poi[]}) => {
+const PoiMarkers = (props: {spaces: Workspace[]}) => {
     const map = useMap();
     // const [markers, setMarkers] = useState<{[key: string]: Marker}>({});
     // const clusterer = useRef<MarkerClusterer | null>(null);
@@ -91,27 +80,48 @@ const PoiMarkers = (props: {pois: Poi[]}) => {
         if (!map) return;
         if (!ev.latLng) return;
         console.log('clicked:', ev.latLng.toJSON());
+        
         map.panTo(ev.latLng);
+        // showCard(ev);
     }, [map]);
     
 
     return (
         <>
-            {props.pois.map( (poi: Poi) => {
-                console.log(poi)
+            {props.spaces.map( (space: Workspace) => {
+                console.log(space)
                 return (
-                <AdvancedMarker
-                    key={poi.key}
-                    position={poi.location}
-                    // ref={marker => setMarkerRef(marker, poi.key)}
-                    onClick={handleClick}
-                    >
+                    <MarkerWithInfoWindow 
+                        position={space.location}
+                        name={space.name}
+                        address={space.address}
+                        handleClick={handleClick}
+                        // onOpen={handleOnOpen}
+                        // onClose={handleOnClose}
+                        poi={{key: space.name, location: space.location} as Poi}
+                        // anchorElement={document.getElementById('anchor')!}
+                        // onClose={() => console.log('close')}
 
-                    <Pin background={'#FBBC04'} glyphColor={'#000'} borderColor={'#000'} />
-                </AdvancedMarker>
+                    />
+                // <AdvancedMarker
+                //     key={space.name}
+                //     position={space.location}
+                //     // ref={marker => setMarkerRef(marker, poi.key)}
+                //     onClick={handleClick}
+                //     >
+
+                //     <Pin background={'#FBBC04'} glyphColor={'#000'} borderColor={'#000'} />
+                // </AdvancedMarker>
                 )
                 
             })}
+            
         </>
     )
+}
+
+function loadWorkspaceLibrary() {
+    const spaces = workspaceLibrary;
+    spaces.setWorkspaces(locations);
+    return spaces;
 }
