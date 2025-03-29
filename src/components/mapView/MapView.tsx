@@ -10,15 +10,21 @@ import {
 import {MarkerClusterer} from '@googlemaps/markerclusterer';
 import type {Marker} from '@googlemaps/markerclusterer';
 import MarkerWithInfoWindow from '../card/MarkerWithInfoWindow';
-import Workspace from '../../models/Workspace.ts';
-import workspaceLibrary from '../../models/WorkspaceLibrary.ts';
+import {Place, PlaceSchema} from '../../models/place.ts';
+import placeLibrary from '../../models/placeLibrary.ts';
 import locations from '../../data.ts';
+import {getWorkbruData} from '../../services/workbru-backend.ts'
+import { useQuery } from '@tanstack/react-query'
 
 
 
 
 export default function MapView() {
-    const workspaces = loadWorkspaceLibrary();
+    // const workspaces = loadWorkspaceLibrary();
+    const { isPending, isError, data, error } = useQuery({
+        queryKey: ["placesNearby"],
+        queryFn: loadWorkspaceLibrary
+    })
     const mapContainerStyle = { width: '100%', height: '100vh' }; // Ensure the map occupies visible space
 
     return (
@@ -37,13 +43,15 @@ export default function MapView() {
                 }
                 reuseMaps={true} // Reuse the map instance when the component unmounts
             >
-                <PoiMarkers spaces={workspaces.spaces} />
+                {!isPending && !isError && data != null &&
+                    <PoiMarkers spaces={data.spaces} />
+                }
             </Map>
         </APIProvider>
     );
 }
 
-const PoiMarkers = (props: {spaces: Workspace[]}) => {
+const PoiMarkers = (props: {spaces: Place[]}) => {
     const map = useMap();
     // const [markers, setMarkers] = useState<{[key: string]: Marker}>({});
     // const clusterer = useRef<MarkerClusterer | null>(null);
@@ -88,17 +96,18 @@ const PoiMarkers = (props: {spaces: Workspace[]}) => {
 
     return (
         <>
-            {props.spaces.map( (space: Workspace) => {
+            {props.spaces.map( (space: Place) => {
                 console.log(space)
+                const latLngLiteral = {lat:space.location.latitude,lng: space.location.longitude} as google.maps.LatLngLiteral
                 return (
                     <MarkerWithInfoWindow 
-                        position={space.location}
+                        position={latLngLiteral}
                         name={space.name}
                         address={space.address}
                         handleClick={handleClick}
                         // onOpen={handleOnOpen}
                         // onClose={handleOnClose}
-                        poi={{key: space.name, location: space.location} as Poi}
+                        poi={{key: space.name, location: latLngLiteral} as Poi}
                         // anchorElement={document.getElementById('anchor')!}
                         // onClose={() => console.log('close')}
 
@@ -120,8 +129,10 @@ const PoiMarkers = (props: {spaces: Workspace[]}) => {
     )
 }
 
-function loadWorkspaceLibrary() {
-    const spaces = workspaceLibrary;
-    spaces.setWorkspaces(locations);
+async function loadWorkspaceLibrary():Promise<typeof placeLibrary> {
+    const spaces = placeLibrary;
+    const data = await getWorkbruData();
+    const jsonData = JSON.parse(data)
+    spaces.setPlaces(jsonData);
     return spaces;
 }
