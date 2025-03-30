@@ -1,0 +1,64 @@
+.HomeViewSection {
+    width: 100vw;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    justify-content:start
+    
+}
+
+#MapView {
+    width: 100vw;
+    height: 100%;
+}
+
+#main {
+    width: 100vw;
+    height:10vh;
+}
+
+#mainBtn {
+    position: relative;
+    top: -30px;
+    left:0;
+    width: 80px;
+    height: 30px;
+    font-size: xx-large;
+    background-color: var(--primary-color);
+    
+    border-radius: 0 50px 0 0;
+}
+
+.mainBtnOpen {
+    width: 100% !important;
+    border-radius: 50px 50px 0 0 !important;
+}
+
+.mainBtnClosed {
+    width: 80px;
+}
+
+.mainBtnOpen .arrow {
+    left: 45%;
+    
+}
+
+.arrow {
+    top: 10px;
+    left: 45%;
+    position: absolute;
+    border: solid white;
+    border-width: 0 3px 3px 0;
+    display: inline-block;
+    padding: 3px;
+}
+
+.up {
+    transform: rotate(-135deg);
+    -webkit-transform: rotate(-135deg);
+}
+
+.down {
+    transform: rotate(45deg);
+    -webkit-transform: rotate(45deg);
+}

@@ -1,14 +1,12 @@
-import MapView from './components/mapView/MapView'
+import HomeView from './components/home/HomeView'
 
-// import './App.css'
+import './App.css'
 
 function App() {
 
 
   return (
-    <MapView>
-
-    </MapView>
+    <HomeView></HomeView>
   )
 }
 

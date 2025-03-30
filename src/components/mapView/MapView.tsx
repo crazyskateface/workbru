@@ -16,16 +16,18 @@ import locations from '../../data.ts';
 import {getWorkbruData} from '../../services/workbru-backend.ts'
 import { useQuery } from '@tanstack/react-query'
 
+type mapViewProps = {
+    poiViewing: (space:Place) => {};
+}
 
 
-
-export default function MapView() {
+export default function MapView(props:mapViewProps) {
     // const workspaces = loadWorkspaceLibrary();
     const { isPending, isError, data, error } = useQuery({
         queryKey: ["placesNearby"],
         queryFn: loadWorkspaceLibrary
     })
-    const mapContainerStyle = { width: '100%', height: '100vh' }; // Ensure the map occupies visible space
+    const mapContainerStyle = { width: '100%', height: '100%' }; // Ensure the map occupies visible space
 
     return (
         <APIProvider 
@@ -44,14 +46,14 @@ export default function MapView() {
                 reuseMaps={true} // Reuse the map instance when the component unmounts
             >
                 {!isPending && !isError && data != null &&
-                    <PoiMarkers spaces={data.spaces} />
+                    <PoiMarkers spaces={data.spaces} poiViewing={props.poiViewing}/>
                 }
             </Map>
         </APIProvider>
     );
 }
 
-const PoiMarkers = (props: {spaces: Place[]}) => {
+const PoiMarkers = (props: {spaces: Place[], poiViewing:(space:Place)=> {}}) => {
     const map = useMap();
     // const [markers, setMarkers] = useState<{[key: string]: Marker}>({});
     // const clusterer = useRef<MarkerClusterer | null>(null);
@@ -83,14 +85,14 @@ const PoiMarkers = (props: {spaces: Place[]}) => {
     //     });
     // };
 
-    const handleClick = useCallback((ev: google.maps.MapMouseEvent) => {
+    const handleClick = useCallback((ev: google.maps.MapMouseEvent, space:Place) => {
         
         if (!map) return;
         if (!ev.latLng) return;
         console.log('clicked:', ev.latLng.toJSON());
         
         map.panTo(ev.latLng);
-        // showCard(ev);
+        props.poiViewing(space);
     }, [map]);
     
 
@@ -101,13 +103,14 @@ const PoiMarkers = (props: {spaces: Place[]}) => {
                 const latLngLiteral = {lat:space.location.latitude,lng: space.location.longitude} as google.maps.LatLngLiteral
                 return (
                     <MarkerWithInfoWindow 
+                        key={space.id}
                         position={latLngLiteral}
                         name={space.name}
                         address={space.address}
-                        handleClick={handleClick}
+                        handleClick={(ev:google.maps.MapMouseEvent) => handleClick(ev,space)}
                         // onOpen={handleOnOpen}
                         // onClose={handleOnClose}
-                        poi={{key: space.name, location: latLngLiteral} as Poi}
+                        poi={{key: space.id, location: latLngLiteral} as Poi}
                         // anchorElement={document.getElementById('anchor')!}
                         // onClose={() => console.log('close')}
 
