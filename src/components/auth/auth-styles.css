@@ -1,0 +1,245 @@
+/* Auth components styling */
+.login-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  padding: 1rem;
+  background-color: #f8f9fa;
+}
+
+.login-card {
+  width: 100%;
+  max-width: 400px;
+  padding: 2rem;
+  background-color: white;
+  border-radius: 0.5rem;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.login-card h2 {
+  margin-bottom: 1.5rem;
+  text-align: center;
+  color: var(--dark-primary-color);
+}
+
+.login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.login-form .form-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.login-form label {
+  margin-bottom: 0.5rem;
+  font-weight: 500;
+}
+
+.login-form input {
+  padding: 0.75rem;
+  border: 1px solid #ced4da;
+  border-radius: 0.25rem;
+  font-size: 1rem;
+}
+
+.login-form input:focus {
+  outline: none;
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 2px rgba(188, 128, 203, 0.25);
+}
+
+.login-button {
+  margin-top: 1rem;
+  padding: 0.75rem !important;
+  font-size: 1rem !important;
+  transition: background-color 0.2s;
+}
+
+.error-message {
+  padding: 0.75rem 1rem;
+  margin-bottom: 1rem;
+  background-color: #f8d7da;
+  color: #721c24;
+  border: 1px solid #f5c6cb;
+  border-radius: 0.5rem;
+  font-size: 0.9rem;
+}
+
+.login-footer {
+  margin-top: 1.5rem;
+  text-align: center;
+}
+
+.back-link {
+  color: var(--primary-color);
+  text-decoration: none;
+}
+
+.back-link:hover {
+  text-decoration: underline;
+}
+
+/* Session Manager Styles */
+.session-manager {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 2rem;
+  background-color: white;
+  border-radius: 0.5rem;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+.session-manager-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+  gap: 1rem;
+  border-bottom: 2px solid #f0f0f0;
+  padding-bottom: 1rem;
+}
+
+.session-manager-header h2 {
+  color: var(--dark-primary-color);
+  margin: 0;
+}
+
+.session-manager-actions {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.session-manager-actions button {
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+  font-weight: 500;
+}
+
+.session-manager-actions button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.session-details {
+  background-color: #f8f9fa;
+  border-radius: 8px;
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+  border: 1px solid #eaeaea;
+}
+
+.session-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.session-table td {
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid #e9ecef;
+}
+
+.session-table tr:last-child td {
+  border-bottom: none;
+}
+
+.session-table .label {
+  font-weight: 600;
+  color: #495057;
+  width: 30%;
+}
+
+.status-indicator {
+  display: inline-block;
+  padding: 0.25rem 0.75rem;
+  border-radius: 50px;
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+.status-indicator.active {
+  background-color: #d4edda;
+  color: #155724;
+}
+
+.status-indicator.inactive {
+  background-color: #f8d7da;
+  color: #721c24;
+}
+
+.time-remaining {
+  margin-left: 0.75rem;
+  font-size: 0.9rem;
+  color: #6c757d;
+  font-style: italic;
+}
+
+.session-info {
+  padding: 1.25rem;
+  background-color: rgba(188, 128, 203, 0.05);
+  border-radius: 8px;
+  border-left: 4px solid var(--primary-color);
+}
+
+.session-info h3 {
+  margin-top: 0;
+  margin-bottom: 1rem;
+  color: var(--dark-primary-color);
+  font-size: 1.1rem;
+}
+
+.session-info ul {
+  padding-left: 1.5rem;
+  margin: 0;
+}
+
+.session-info li {
+  margin-bottom: 0.5rem;
+  color: #495057;
+}
+
+.loading, .no-sessions {
+  padding: 3rem 1rem;
+  text-align: center;
+  color: #6c757d;
+  background-color: #f8f9fa;
+  border-radius: 8px;
+  font-style: italic;
+}
+
+/* Media Queries */
+@media (max-width: 480px) {
+  .login-card {
+    padding: 1.5rem;
+  }
+  
+  .login-form input,
+  .login-button {
+    padding: 0.625rem;
+  }
+}
+
+@media (max-width: 576px) {
+  .session-manager {
+    padding: 1.5rem;
+  }
+  
+  .session-manager-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  
+  .session-details {
+    padding: 1rem;
+  }
+  
+  .session-table td {
+    padding: 0.5rem;
+  }
+}

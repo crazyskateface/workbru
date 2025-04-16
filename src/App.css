@@ -2,6 +2,9 @@
   --primary-color: #bc80cb; 
   --secondary-color: #b8c9d4; 
   --tertiary-color: #3ce7cb; 
+  --dark-primary-color: #3f2c50;
+  --dark-secondary-color: #34495e;
+  --dark-surface-color: #202020;
 }
 body {
   margin: 0;
