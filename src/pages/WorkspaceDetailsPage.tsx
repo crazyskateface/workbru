@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { MapPin, Wifi, Coffee, Power, Users, Clock, ChevronLeft, Star, Calendar, Clock8, MapIcon, Share2, Bookmark, BookmarkCheck } from 'lucide-react';
 import GoogleMapReact from 'google-map-react';
-import { getWorkspaceById } from '../lib/workspaces';
+import { fetchWorkspaceDetails } from '../lib/googlePlaces';
 import { Workspace } from '../types';
 import { useAnalytics } from '../hooks/useAnalytics';
 
@@ -43,7 +43,7 @@ const WorkspaceDetailsPage: React.FC = () => {
       if (!id) return;
       try {
         setLoading(true);
-        const data = await getWorkspaceById(id);
+        const data = await fetchWorkspaceDetails(id);
         
         // Parse location from GeoJSON format
         if (data.location && typeof data.location === 'object') {
