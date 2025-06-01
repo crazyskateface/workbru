@@ -1,156 +1,77 @@
-import { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { MapPin, Search, Filter, Plus, Eye, Edit, Trash2 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import type { Workspace } from '../../types';
 
 function AdminWorkspaces() {
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [showFilters, setShowFilters] = useState(false);
-  const [city, setCity] = useState('');
-  const [importStatus, setImportStatus] = useState<{
-    inProgress: boolean;
-    message?: string;
-    error?: string;
-    progress?: {
-      processed: number;
-      total: number;
-      currentType: string;
-      costEstimate: {
-        searchCost: number;
-        detailsCost: number;
-        total: number;
-      };
-    };
-  }>();
+  const [selectedWorkspace, setSelectedWorkspace] = useState<Workspace | null>(null);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
 
-  const handleImport = async () => {
-    if (!city.trim()) {
-      setImportStatus({ inProgress: false, error: 'Please enter a city name' });
-      return;
-    }
+  useEffect(() => {
+    loadWorkspaces();
+  }, []);
 
+  const loadWorkspaces = async () => {
     try {
-      setImportStatus({ inProgress: true });
-      
-      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/fetch-places`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
-        },
-        body: JSON.stringify({ 
-          city: city.trim(),
-          batchSize: 10,
-          resume: false
-        })
-      });
-
-      if (!response.ok) {
-        throw new Error(`Failed to import places: ${response.statusText}`);
-      }
-
-      const data = await response.json();
-      
-      setImportStatus({
-        inProgress: true,
-        message: data.message,
-        progress: {
-          processed: data.session.processed,
-          total: data.session.totalProcessed,
-          currentType: data.session.currentType,
-          costEstimate: data.session.costEstimate
-        }
-      });
-
-      // Refresh workspace list
-      const { data: newWorkspaces } = await supabase
+      setLoading(true);
+      const { data, error } = await supabase
         .from('workspaces')
         .select('*')
         .order('created_at', { ascending: false });
-      
-      setWorkspaces(newWorkspaces || []);
+
+      if (error) throw error;
+      setWorkspaces(data || []);
     } catch (error) {
-      console.error('Error importing places:', error);
-      setImportStatus({
-        inProgress: false,
-        error: error.message
-      });
+      console.error('Error loading workspaces:', error);
+    } finally {
+      setLoading(false);
     }
   };
+
+  const handleDeleteClick = (workspace: Workspace) => {
+    setSelectedWorkspace(workspace);
+    setIsDeleteModalOpen(true);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!selectedWorkspace?.id) return;
+
+    try {
+      const { error } = await supabase
+        .from('workspaces')
+        .delete()
+        .eq('id', selectedWorkspace.id);
+
+      if (error) throw error;
+
+      setWorkspaces(workspaces.filter(w => w.id !== selectedWorkspace.id));
+      setIsDeleteModalOpen(false);
+      setSelectedWorkspace(null);
+    } catch (error) {
+      console.error('Error deleting workspace:', error);
+    }
+  };
+
+  const filteredWorkspaces = workspaces.filter(workspace => {
+    if (!searchQuery) return true;
+    return (
+      workspace.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      workspace.address.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+  });
 
   return (
     <div className="p-6">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Workspaces</h1>
-      </div>
-
-      {/* Import Section */}
-      <div className="mb-8 bg-white dark:bg-dark-card rounded-lg shadow-md p-6">
-        <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">Import Places</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              City
-            </label>
-            <input
-              type="text"
-              value={city}
-              onChange={(e) => setCity(e.target.value)}
-              placeholder="Enter city name"
-              className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-input text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
-            />
-          </div>
-        </div>
-
-        <div className="flex items-center">
-          <button
-            onClick={handleImport}
-            disabled={importStatus?.inProgress}
-            className="inline-flex items-center px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors duration-200 disabled:opacity-50"
-          >
-            {importStatus?.inProgress ? (
-              <>
-                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
-                Importing...
-              </>
-            ) : (
-              <>
-                <MapPin className="h-5 w-5 mr-2" />
-                Import Places
-              </>
-            )}
-          </button>
-
-          {importStatus?.progress && (
-            <div className="ml-4 flex-1">
-              <div className="flex justify-between text-sm text-gray-600 dark:text-gray-400 mb-1">
-                <span>Processing {importStatus.progress.currentType}</span>
-                <span>
-                  {importStatus.progress.processed} / {importStatus.progress.total} places
-                </span>
-              </div>
-              <div className="w-full h-2 bg-gray-200 dark:bg-dark-border rounded-full overflow-hidden">
-                <div 
-                  className="h-full bg-primary-600 transition-all duration-300"
-                  style={{ 
-                    width: `${(importStatus.progress.processed / importStatus.progress.total) * 100}%`
-                  }}
-                ></div>
-              </div>
-              <div className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                Estimated cost: ${importStatus.progress.costEstimate.total.toFixed(2)}
-              </div>
-            </div>
-          )}
-
-          {importStatus?.error && (
-            <div className="ml-4 text-red-600 dark:text-red-400">
-              {importStatus.error}
-            </div>
-          )}
-        </div>
+        <button className="inline-flex items-center px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors duration-200">
+          <Plus className="h-5 w-5 mr-2" />
+          Add Workspace
+        </button>
       </div>
 
       {/* Search and Filters */}
@@ -181,7 +102,7 @@ function AdminWorkspaces() {
             <div className="w-8 h-8 border-4 border-primary-600 border-t-transparent rounded-full animate-spin mx-auto"></div>
             <p className="mt-2 text-gray-600 dark:text-gray-400">Loading workspaces...</p>
           </div>
-        ) : workspaces.length === 0 ? (
+        ) : filteredWorkspaces.length === 0 ? (
           <div className="p-6 text-center">
             <p className="text-gray-600 dark:text-gray-400">No workspaces found</p>
           </div>
@@ -197,8 +118,8 @@ function AdminWorkspaces() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200 dark:divide-dark-border">
-                {workspaces.map((workspace) => (
-                  <tr key={workspace.id}>
+                {filteredWorkspaces.map((workspace) => (
+                  <tr key={workspace.id} className="hover:bg-gray-50 dark:hover:bg-dark-input">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm font-medium text-gray-900 dark:text-white">{workspace.name}</div>
                     </td>
@@ -217,7 +138,10 @@ function AdminWorkspaces() {
                       <button className="text-primary-600 hover:text-primary-900 mr-3">
                         <Edit className="h-5 w-5" />
                       </button>
-                      <button className="text-red-600 hover:text-red-900">
+                      <button 
+                        onClick={() => handleDeleteClick(workspace)}
+                        className="text-red-600 hover:text-red-900"
+                      >
                         <Trash2 className="h-5 w-5" />
                       </button>
                     </td>
@@ -228,6 +152,34 @@ function AdminWorkspaces() {
           </div>
         )}
       </div>
+
+      {/* Delete Confirmation Modal */}
+      {isDeleteModalOpen && selectedWorkspace && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-dark-card rounded-lg p-6 max-w-md w-full mx-4">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+              Delete Workspace
+            </h3>
+            <p className="text-gray-600 dark:text-gray-400 mb-6">
+              Are you sure you want to delete "{selectedWorkspace.name}"? This action cannot be undone.
+            </p>
+            <div className="flex justify-end gap-4">
+              <button
+                onClick={() => setIsDeleteModalOpen(false)}
+                className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-dark-input rounded-lg"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeleteConfirm}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
