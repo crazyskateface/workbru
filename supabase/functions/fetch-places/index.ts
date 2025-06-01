@@ -1,4 +1,3 @@
-// Import from Deno's standard library
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.38.4";
 
@@ -47,22 +46,21 @@ const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 
 // Constants
-const MAX_PLACES_PER_REQUEST = 25;
+const MAX_PLACES_PER_REQUEST = 10; // Reduced for cost optimization
+const BATCH_SIZE = 3; // Process places in smaller batches
+const RATE_LIMIT_DELAY = 200; // ms between API calls
 
-// Coffee chains to include in search
-const COFFEE_CHAINS = [
-  'coffee shop',
-  'Starbucks',
-  'Peet\'s Coffee',
-  '7 Brew Coffee',
-  'Dunkin\'',
-  'Tim Horton\'s',
-];
+// Workspace types with priorities
+const WORKSPACE_TYPES = {
+  HIGH_PRIORITY: ['cafe', 'library', 'coworking_space'],
+  MEDIUM_PRIORITY: ['coffee_shop', 'book_store', 'restaurant'],
+  LOW_PRIORITY: ['bar', 'shopping_mall']
+};
 
-// Other workspace types
-const WORKSPACE_TYPES = [
-  'library',
-  'coworking space'
+// Keywords for filtering
+const EXCLUDE_KEYWORDS = [
+  'gas', 'station', 'pharmacy', 'hospital', 'clinic',
+  'bank', 'gym', 'fitness', 'school', 'daycare'
 ];
 
 // Validate required environment variables
@@ -122,7 +120,10 @@ async function getOrCreateImportSession(city: string, resume: boolean): Promise<
 async function updateImportSession(id: string, updates: Partial<ImportSession>) {
   const { error } = await supabase
     .from('import_sessions')
-    .update(updates)
+    .update({
+      ...updates,
+      last_processed_at: new Date().toISOString()
+    })
     .eq('id', id);
 
   if (error) throw error;
@@ -154,11 +155,17 @@ async function geocodeCity(city: string) {
   };
 }
 
-function calculateProgress(session: ImportSession, totalTypes: string[]) {
+function calculateProgress(session: ImportSession) {
+  const allTypes = [
+    ...WORKSPACE_TYPES.HIGH_PRIORITY,
+    ...WORKSPACE_TYPES.MEDIUM_PRIORITY,
+    ...WORKSPACE_TYPES.LOW_PRIORITY
+  ];
+  
   return {
     typesCompleted: session.completed_types.length,
-    totalTypes: totalTypes.length,
-    percentage: Math.round((session.completed_types.length / totalTypes.length) * 100)
+    totalTypes: allTypes.length,
+    percentage: Math.round((session.completed_types.length / allTypes.length) * 100)
   };
 }
 
@@ -167,6 +174,31 @@ function isRetryableError(error: any) {
          error.status >= 500 || // Server errors
          error.message.includes('ETIMEDOUT') ||
          error.message.includes('ECONNRESET');
+}
+
+async function retryWithExponentialBackoff<T>(
+  operation: () => Promise<T>,
+  maxRetries = 3,
+  baseDelay = 1000
+): Promise<T> {
+  let lastError: Error;
+  
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      return await operation();
+    } catch (error) {
+      lastError = error;
+      
+      if (!isRetryableError(error) || attempt === maxRetries - 1) {
+        throw error;
+      }
+      
+      const delay = baseDelay * Math.pow(2, attempt);
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
+  }
+  
+  throw lastError!;
 }
 
 serve(async (req) => {
@@ -184,7 +216,7 @@ serve(async (req) => {
     validateEnvironment();
     supabase = initializeSupabase();
     
-    const { city, batchSize = 10, resume = false } = await req.json();
+    const { city, resume = false } = await req.json();
     
     if (!city) {
       return new Response(
@@ -196,15 +228,32 @@ serve(async (req) => {
     // Get or create import session
     const session = await getOrCreateImportSession(city, resume);
     
-    // Smart type selection - prioritize high-value types
-    const prioritizedTypes = prioritizeSearchTypes(COFFEE_CHAINS, WORKSPACE_TYPES);
-    const remainingTypes = prioritizedTypes.filter(type => 
+    // Get remaining workspace types to process
+    const allTypes = [
+      ...WORKSPACE_TYPES.HIGH_PRIORITY,
+      ...WORKSPACE_TYPES.MEDIUM_PRIORITY,
+      ...WORKSPACE_TYPES.LOW_PRIORITY
+    ];
+    
+    const remainingTypes = allTypes.filter(type => 
       !session.completed_types.includes(type)
     );
 
     if (remainingTypes.length === 0) {
+      await updateImportSession(session.id, {
+        status: 'completed'
+      });
+      
       return new Response(
-        JSON.stringify({ message: 'Import already completed for this city' }),
+        JSON.stringify({ 
+          message: 'Import completed successfully',
+          session: {
+            id: session.id,
+            city,
+            status: 'completed',
+            processed_count: session.processed_count
+          }
+        }),
         { headers: { 'Content-Type': 'application/json', ...corsHeaders } }
       );
     }
@@ -212,60 +261,134 @@ serve(async (req) => {
     const currentType = remainingTypes[0];
     const existingPlaceIds = await getExistingPlaceIds();
     
-    // Phase 1: Get candidate places (cheaper API call)
-    const candidates = await getCandidatePlaces(city, currentType, session.next_page_tokens[currentType]);
-    
-    // Phase 2: Smart filtering before expensive calls
-    const filteredCandidates = candidates.places
-      .filter(place => !existingPlaceIds.has(place.place_id))
-      .filter(isLikelyWorkspace)
-      .slice(0, batchSize);
-
-    if (filteredCandidates.length === 0) {
-      // Mark this type as completed and move to next
-      await updateImportSession(session.id, {
-        completed_types: [...session.completed_types, currentType]
-      });
+    // Get places for current type
+    const places = await retryWithExponentialBackoff(async () => {
+      const location = await geocodeCity(city);
       
-      return new Response(
-        JSON.stringify({ 
-          message: `No new places found for ${currentType} in ${city}`,
-          nextType: remainingTypes[1] || null,
-          progress: calculateProgress(session, prioritizedTypes)
-        }),
-        { headers: { 'Content-Type': 'application/json', ...corsHeaders } }
+      const response = await fetch(
+        `https://maps.googleapis.com/maps/api/place/textsearch/json?` +
+        `query=${encodeURIComponent(currentType)} in ${encodeURIComponent(city)}&` +
+        `location=${location.lat},${location.lng}&` +
+        `radius=5000&` +
+        `key=${GOOGLE_API_KEY}`
       );
+      
+      if (!response.ok) {
+        throw new Error(`Places API error: ${response.status}`);
+      }
+      
+      return await response.json();
+    });
+
+    // Filter places
+    const filteredPlaces = places.results
+      .filter((place: any) => !existingPlaceIds.has(place.place_id))
+      .filter((place: any) => {
+        const name = place.name.toLowerCase();
+        return !EXCLUDE_KEYWORDS.some(keyword => name.includes(keyword));
+      })
+      .slice(0, MAX_PLACES_PER_REQUEST);
+
+    // Process places in batches
+    const workspaces = [];
+    for (let i = 0; i < filteredPlaces.length; i += BATCH_SIZE) {
+      const batch = filteredPlaces.slice(i, i + BATCH_SIZE);
+      
+      const batchResults = await Promise.all(
+        batch.map(async (place: any, index: number) => {
+          // Add delay between requests
+          await new Promise(resolve => setTimeout(resolve, index * RATE_LIMIT_DELAY));
+          
+          try {
+            const details = await retryWithExponentialBackoff(async () => {
+              const response = await fetch(
+                `https://maps.googleapis.com/maps/api/place/details/json?` +
+                `place_id=${place.place_id}&` +
+                `fields=name,formatted_address,geometry,photos,opening_hours,rating,types&` +
+                `key=${GOOGLE_API_KEY}`
+              );
+              
+              if (!response.ok) {
+                throw new Error(`Place Details API error: ${response.status}`);
+              }
+              
+              return await response.json();
+            });
+
+            if (!details.result.geometry?.location) {
+              return null;
+            }
+
+            const location = `POINT(${
+              details.result.geometry.location.lng
+            } ${
+              details.result.geometry.location.lat
+            })`;
+
+            return {
+              name: details.result.name,
+              description: `A workspace located in ${city}`,
+              address: details.result.formatted_address,
+              location,
+              amenities: determineAmenities(details.result.types),
+              attributes: determineAttributes(details.result.types, details.result.rating),
+              opening_hours: parseOpeningHours(details.result.opening_hours?.weekday_text),
+              photos: details.result.photos?.map((photo: any) => 
+                `https://maps.googleapis.com/maps/api/place/photo?maxwidth=800&photo_reference=${photo.photo_reference}&key=${GOOGLE_API_KEY}`
+              ) || [],
+              google_place_id: place.place_id,
+              is_public: true
+            };
+          } catch (error) {
+            console.error(`Error processing place ${place.place_id}:`, error);
+            return null;
+          }
+        })
+      );
+      
+      workspaces.push(...batchResults.filter(Boolean));
     }
 
-    // Phase 3: Fetch details with rate limiting and error handling
-    const workspaces = await processPlacesWithRetry(filteredCandidates, city);
-    
-    // Phase 4: Bulk insert successful workspaces
-    const insertedWorkspaces = await bulkInsertWorkspaces(workspaces.filter(Boolean));
-    
+    // Insert workspaces
+    const { data: insertedWorkspaces, error: insertError } = await supabase
+      .from('workspaces')
+      .insert(workspaces)
+      .select();
+
+    if (insertError) {
+      throw insertError;
+    }
+
     // Update session progress
     await updateImportSession(session.id, {
       processed_count: session.processed_count + insertedWorkspaces.length,
-      last_processed_at: new Date().toISOString(),
+      completed_types: [...session.completed_types, currentType],
       next_page_tokens: {
         ...session.next_page_tokens,
-        [currentType]: candidates.nextPageToken
+        [currentType]: places.next_page_token
       }
     });
+
+    // Calculate cost estimate
+    const costEstimate = {
+      searchCost: 0.032, // $0.032 per Places API call
+      detailsCost: filteredPlaces.length * 0.017, // $0.017 per Place Details call
+      total: 0.032 + (filteredPlaces.length * 0.017)
+    };
 
     return new Response(
       JSON.stringify({
         message: `Successfully imported ${insertedWorkspaces.length} workspaces`,
         workspaces: insertedWorkspaces,
         session: {
+          id: session.id,
           city,
           currentType,
           processed: insertedWorkspaces.length,
           totalProcessed: session.processed_count + insertedWorkspaces.length,
-          remainingTypes: remainingTypes.length - (candidates.nextPageToken ? 0 : 1),
-          progress: calculateProgress(session, prioritizedTypes),
-          hasMore: remainingTypes.length > 1 || candidates.nextPageToken,
-          costEstimate: calculateCostEstimate(session)
+          progress: calculateProgress(session),
+          costEstimate,
+          remainingTypes: remainingTypes.length - 1
         }
       }),
       { headers: { 'Content-Type': 'application/json', ...corsHeaders } }
@@ -289,156 +412,7 @@ serve(async (req) => {
 });
 
 // Helper Functions
-async function getCandidatePlaces(city: string, type: string, nextPageToken: string | null = null) {
-  const location = await geocodeCity(city);
-  
-  const params = new URLSearchParams({
-    location: `${location.lat},${location.lng}`,
-    radius: '5000',
-    type: type.replace(/\s+/g, '_').toLowerCase(),
-    key: GOOGLE_API_KEY!
-  });
-  
-  if (nextPageToken) {
-    params.set('pagetoken', nextPageToken);
-    // Wait for token to be ready
-    await new Promise(resolve => setTimeout(resolve, 2000));
-  }
-
-  try {
-    const response = await fetch(
-      `https://maps.googleapis.com/maps/api/place/nearbysearch/json?${params}`
-    );
-    
-    if (!response.ok) {
-      throw new Error(`Places API error: ${response.status}`);
-    }
-    
-    const data = await response.json();
-    
-    return {
-      places: data.results,
-      nextPageToken: data.next_page_token
-    };
-  } catch (error) {
-    if (error.status === 429) {
-      // Rate limited - wait and retry
-      await new Promise(resolve => setTimeout(resolve, 5000));
-      return getCandidatePlaces(city, type, nextPageToken);
-    }
-    throw error;
-  }
-}
-
-function isLikelyWorkspace(place: any) {
-  const name = (place.name || '').toLowerCase();
-  const types = place.types || [];
-  
-  // Exclude obvious non-workspaces
-  const excludeKeywords = [
-    'gas station', 'pharmacy', 'hospital', 'bank', 
-    'car wash', 'auto repair', 'liquor', 'dispensary'
-  ];
-  
-  if (excludeKeywords.some(keyword => name.includes(keyword))) {
-    return false;
-  }
-  
-  // Include likely workspaces
-  const includeKeywords = [
-    'coffee', 'cafe', 'library', 'coworking', 'study', 
-    'book', 'tea', 'wifi', 'laptop'
-  ];
-  
-  const hasWorkspaceType = types.some(type => 
-    ['cafe', 'library', 'book_store', 'university'].includes(type)
-  );
-  
-  const hasWorkspaceName = includeKeywords.some(keyword => 
-    name.includes(keyword)
-  );
-  
-  return hasWorkspaceType || hasWorkspaceName;
-}
-
-async function processPlacesWithRetry(candidates: any[], city: string) {
-  const results = [];
-  const BATCH_SIZE = 3;
-  
-  for (let i = 0; i < candidates.length; i += BATCH_SIZE) {
-    const batch = candidates.slice(i, i + BATCH_SIZE);
-    
-    const batchPromises = batch.map(async (place, index) => {
-      await new Promise(resolve => setTimeout(resolve, index * 200));
-      
-      try {
-        return await fetchPlaceDetailsWithRetry(place.place_id, city);
-      } catch (error) {
-        console.error(`Failed to process place ${place.place_id}:`, error);
-        return null;
-      }
-    });
-    
-    const batchResults = await Promise.all(batchPromises);
-    results.push(...batchResults);
-    
-    if (i + BATCH_SIZE < candidates.length) {
-      await new Promise(resolve => setTimeout(resolve, 1000));
-    }
-  }
-  
-  return results;
-}
-
-async function fetchPlaceDetailsWithRetry(placeId: string, city: string, maxRetries = 3) {
-  for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    try {
-      const response = await fetch(
-        `https://maps.googleapis.com/maps/api/place/details/json?place_id=${placeId}&fields=name,formatted_address,geometry,photos,opening_hours,rating,types,business_status,price_level,website,formatted_phone_number&key=${GOOGLE_API_KEY}`
-      );
-      
-      if (!response.ok) {
-        throw new Error(`Place Details API error: ${response.status}`);
-      }
-      
-      const data = await response.json();
-      const details = data.result;
-
-      if (!details.geometry?.location?.lat || !details.geometry?.location?.lng) {
-        return null;
-      }
-
-      const location = `POINT(${details.geometry.location.lng} ${details.geometry.location.lat})`;
-
-      return {
-        name: details.name,
-        description: `A workspace located in ${city}`,
-        address: details.formatted_address,
-        location,
-        amenities: determineAmenities(details.types, details.business_status),
-        attributes: determineAttributes(details.types, details.rating, details.price_level),
-        opening_hours: parseOpeningHours(details.opening_hours?.weekday_text),
-        photos: details.photos?.map((photo: any) => 
-          `https://maps.googleapis.com/maps/api/place/photo?maxwidth=800&photo_reference=${photo.photo_reference}&key=${GOOGLE_API_KEY}`
-        ) || [],
-        google_place_id: placeId,
-        is_public: true,
-        website: details.website,
-        phone: details.formatted_phone_number
-      };
-      
-    } catch (error) {
-      if (attempt === maxRetries) throw error;
-      
-      const delay = Math.pow(2, attempt) * 1000;
-      await new Promise(resolve => setTimeout(resolve, delay));
-    }
-  }
-  
-  throw new Error(`Failed to fetch place details after ${maxRetries} attempts`);
-}
-
-function determineAmenities(types: string[], businessStatus?: string) {
+function determineAmenities(types: string[]) {
   return {
     wifi: types.includes('cafe') || types.includes('library'),
     coffee: types.includes('cafe') || types.includes('restaurant'),
@@ -449,7 +423,7 @@ function determineAmenities(types: string[], businessStatus?: string) {
   };
 }
 
-function determineAttributes(types: string[], rating?: number, priceLevel?: number) {
+function determineAttributes(types: string[], rating?: number) {
   return {
     parking: 'street',
     capacity: 'medium',
@@ -472,64 +446,4 @@ function parseOpeningHours(weekdayText?: string[]) {
     const [open, close] = hours.split(' – ');
     return { day, open, close };
   });
-}
-
-function prioritizeSearchTypes(coffeeChains: string[], workspaceTypes: string[]) {
-  const highValue = ['cafe', 'library', 'coworking_space'];
-  const mediumValue = [...coffeeChains];
-  const lowValue = workspaceTypes.filter(type => !highValue.includes(type));
-  
-  return [...highValue, ...mediumValue, ...lowValue];
-}
-
-async function bulkInsertWorkspaces(workspaces: Workspace[]) {
-  if (workspaces.length === 0) return [];
-  
-  const { data, error } = await supabase
-    .from('workspaces')
-    .insert(workspaces)
-    .select();
-
-  if (error) {
-    console.error('Bulk insert error:', error);
-    return await insertWorkspacesIndividually(workspaces);
-  }
-
-  return data;
-}
-
-async function insertWorkspacesIndividually(workspaces: Workspace[]) {
-  const results = [];
-  
-  for (const workspace of workspaces) {
-    try {
-      const { data, error } = await supabase
-        .from('workspaces')
-        .insert([workspace])
-        .select()
-        .single();
-        
-      if (!error && data) {
-        results.push(data);
-      }
-    } catch (error) {
-      console.error('Individual insert error:', error);
-    }
-  }
-  
-  return results;
-}
-
-function calculateCostEstimate(session: ImportSession) {
-  const placeSearchCost = 0.032;
-  const placeDetailsCost = 0.017;
-  
-  const estimatedSearches = session.processed_count * 1.2;
-  const detailsCalls = session.processed_count;
-  
-  return {
-    searchCost: estimatedSearches * placeSearchCost,
-    detailsCost: detailsCalls * placeDetailsCost,
-    total: (estimatedSearches * placeSearchCost) + (detailsCalls * placeDetailsCost)
-  };
 }
