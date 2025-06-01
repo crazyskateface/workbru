@@ -1,15 +1,13 @@
 import React, { useEffect } from 'react';
 import { Outlet, useLocation, Link } from 'react-router-dom';
-import { ChevronRight, LayoutDashboard, Users, Coffee, LogOut } from 'lucide-react';
+import { ChevronRight, LayoutDashboard, Users, Coffee, LogOut, Download } from 'lucide-react';
 import { signOut } from '../../lib/supabase';
 import anime from 'animejs';
 
 const AdminLayout: React.FC = () => {
   const location = useLocation();
 
-  // Page transition animation using anime.js
   useEffect(() => {
-    // Create animation when the component mounts or route changes
     anime({
       targets: '.admin-content',
       opacity: [0, 1],
@@ -59,6 +57,18 @@ const AdminLayout: React.FC = () => {
                 <Coffee className="w-5 h-5 mr-3 text-primary-600 dark:text-primary-400" />
                 <span className="text-gray-800 dark:text-gray-200">Workspaces</span>
                 {location.pathname === '/admin/workspaces' && <ChevronRight className="w-5 h-5 ml-auto text-primary-500" />}
+              </Link>
+            </li>
+            <li>
+              <Link 
+                to="/admin/import" 
+                className={`flex items-center px-6 py-3 hover:bg-gray-100 dark:hover:bg-dark-input transition-colors duration-200 ${
+                  location.pathname === '/admin/import' ? 'bg-primary-50 dark:bg-primary-900/30 border-r-4 border-primary-500' : ''
+                }`}
+              >
+                <Download className="w-5 h-5 mr-3 text-primary-600 dark:text-primary-400" />
+                <span className="text-gray-800 dark:text-gray-200">Import</span>
+                {location.pathname === '/admin/import' && <ChevronRight className="w-5 h-5 ml-auto text-primary-500" />}
               </Link>
             </li>
             <li>

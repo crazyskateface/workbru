@@ -15,6 +15,7 @@ import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import AdminDashboard from './pages/admin/Dashboard';
 import AdminWorkspaces from './pages/admin/Workspaces';
+import ImportWorkspaces from './pages/admin/ImportWorkspaces';
 import AdminUsers from './pages/admin/Users';
 import NotFoundPage from './pages/NotFoundPage';
 
@@ -23,7 +24,7 @@ import { ThemeProvider } from './contexts/ThemeContext';
 
 function App() {
   const { user, isLoading, initializeAuth } = useAuthStore();
-  useAnalytics(); // Add analytics tracking
+  useAnalytics();
 
   useEffect(() => {
     initializeAuth();
@@ -44,7 +45,7 @@ function App() {
     }
     
     if (requireAdmin && user.role !== 'admin') {
-      return <Navigate to="/app\" replace />;
+      return <Navigate to="/app" replace />;
     }
     
     return <>{children}</>;
@@ -55,13 +56,13 @@ function App() {
       <Routes>
         {/* Public routes */}
         <Route path="/" element={
-          user ? <Navigate to="/app\" replace /> : <LandingPage />
+          user ? <Navigate to="/app" replace /> : <LandingPage />
         } />
         <Route path="/login" element={
-          user ? <Navigate to="/app\" replace /> : <LoginPage />
+          user ? <Navigate to="/app" replace /> : <LoginPage />
         } />
         <Route path="/register" element={
-          user ? <Navigate to="/app\" replace /> : <RegisterPage />
+          user ? <Navigate to="/app" replace /> : <RegisterPage />
         } />
         
         {/* User routes */}
@@ -82,6 +83,7 @@ function App() {
         }>
           <Route index element={<AdminDashboard />} />
           <Route path="workspaces" element={<AdminWorkspaces />} />
+          <Route path="import" element={<ImportWorkspaces />} />
           <Route path="users" element={<AdminUsers />} />
         </Route>
         
