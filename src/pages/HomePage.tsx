@@ -1,17 +1,17 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { Wifi, Coffee, Power, Users, Clock, Search, List, MapIcon, Filter, Star, MapPin, ChevronRight, Crosshair } from 'lucide-react';
 import GoogleMapReact from 'google-map-react';
-import { fetchNearbyWorkspaces } from '../lib/googlePlaces';
+import { getNearbyWorkspaces } from '../lib/workspaces';
 import { Workspace, FilterOptions, MapPosition } from '../types';
+import { useAnalytics } from '../hooks/useAnalytics';
 
-// Define default map options
 const defaultMapOptions = {
   fullscreenControl: false,
   zoomControl: true,
   clickableIcons: false,
-  scrollwheel: true, // Enable scroll wheel zooming
-  gestureHandling: 'greedy', // Allow zooming without Ctrl key
+  scrollwheel: true,
+  gestureHandling: 'greedy',
   styles: [
     {
       featureType: 'poi',
@@ -30,7 +30,6 @@ interface MarkerProps {
   onClick?: () => void;
 }
 
-// Error Boundary Component
 class MapErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean }> {
   constructor(props: { children: React.ReactNode }) {
     super(props);
@@ -136,6 +135,7 @@ const Marker: React.FC<MarkerProps> = ({ workspace, isSelected, isCoffeeShop, on
 );
 
 const HomePage: React.FC = () => {
+  const { trackEvent } = useAnalytics();
   const [view, setView] = useState<'map' | 'list'>('map');
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [selectedWorkspace, setSelectedWorkspace] = useState<string | null>(null);
@@ -152,7 +152,6 @@ const HomePage: React.FC = () => {
     };
   });
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
-  
   const [filters, setFilters] = useState<FilterOptions>({
     wifi: false,
     coffee: false,
@@ -165,8 +164,49 @@ const HomePage: React.FC = () => {
 
   const mapRef = useRef<any>(null);
   const mapsRef = useRef<any>(null);
+  const loadingRef = useRef<boolean>(false);
 
-  // Get user's location on initial load
+  const loadWorkspaces = useCallback(async (lat: number, lng: number, force: boolean = false) => {
+    if (loadingRef.current) return;
+    
+    try {
+      loadingRef.current = true;
+      setLoading(true);
+      
+      const spaces = await getNearbyWorkspaces(lat, lng, 5, force);
+      setWorkspaces(spaces);
+      
+      trackEvent('load_workspaces', {
+        latitude: lat,
+        longitude: lng,
+        count: spaces.length
+      });
+    } catch (error) {
+      console.error('Error fetching workspaces:', error);
+      setMapError('Failed to load workspaces. Please try again.');
+    } finally {
+      setLoading(false);
+      loadingRef.current = false;
+    }
+  }, [trackEvent]);
+
+  const handleBoundsChange = () => {
+    if (!mapRef.current || !mapReady) return;
+    
+    const center = mapRef.current.getCenter();
+    const zoom = mapRef.current.getZoom();
+    
+    setMapPosition({
+      center: { lat: center.lat(), lng: center.lng() },
+      zoom
+    });
+  };
+
+  useEffect(() => {
+    if (!mapReady) return;
+    loadWorkspaces(mapPosition.center.lat, mapPosition.center.lng);
+  }, [mapPosition.center, mapReady, loadWorkspaces]);
+
   useEffect(() => {
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
@@ -177,7 +217,6 @@ const HomePage: React.FC = () => {
           };
           setUserLocation(location);
           
-          // Only set map position if there's no saved position
           if (!localStorage.getItem('mapPosition')) {
             setMapPosition({
               center: location,
@@ -192,33 +231,10 @@ const HomePage: React.FC = () => {
     }
   }, []);
 
-  // Load workspaces based on map position
-  useEffect(() => {
-    const loadWorkspaces = async () => {
-      try {
-        setLoading(true);
-        const spaces = await fetchNearbyWorkspaces(
-          mapPosition.center.lat,
-          mapPosition.center.lng,
-          5000 // 5km radius
-        );
-        setWorkspaces(spaces);
-      } catch (error) {
-        console.error('Error fetching workspaces:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    loadWorkspaces();
-  }, [mapPosition.center]);
-
-  // Save map position to localStorage when it changes
   useEffect(() => {
     localStorage.setItem('mapPosition', JSON.stringify(mapPosition));
   }, [mapPosition]);
 
-  // Reset selected workspace when view changes
   useEffect(() => {
     setSelectedWorkspace(null);
   }, [view]);
@@ -256,16 +272,12 @@ const HomePage: React.FC = () => {
     
     const workspace = workspaces.find(w => w.id === workspaceId);
     if (workspace?.location && mapRef.current && mapsRef.current) {
-      // Create a new LatLng object
       const position = new mapsRef.current.LatLng(
         workspace.location.latitude,
         workspace.location.longitude
       );
 
-      // Pan to the marker position
       mapRef.current.panTo(position);
-      
-      // Zoom in slightly
       mapRef.current.setZoom(15);
     }
   };
@@ -302,7 +314,7 @@ const HomePage: React.FC = () => {
       <MapErrorBoundary>
         <div style={{ height: '100%', width: '100%' }}>
           <GoogleMapReact
-            key={view} // Add key prop to force remount when view changes
+            key={view}
             bootstrapURLKeys={{ 
               key: import.meta.env.VITE_GOOGLE_MAPS_API_KEY,
               libraries: ['places']
@@ -315,7 +327,6 @@ const HomePage: React.FC = () => {
             onGoogleApiLoaded={handleApiLoaded}
           >
             {mapReady && filteredWorkspaces.map((workspace) => {
-              // Validate location before rendering marker
               if (!workspace.location || !isValidLocation(workspace.location)) {
                 return null;
               }
@@ -340,7 +351,6 @@ const HomePage: React.FC = () => {
 
   return (
     <div className="h-screen flex flex-col relative">
-      {/* Search bar and view toggles - Always visible */}
       <div className="bg-white/90 dark:bg-dark-card/90 backdrop-blur-sm border-b border-gray-200 dark:border-dark-border py-2 px-4">
         <div className="flex items-center gap-4">
           <div className="relative flex-grow max-w-2xl">
@@ -406,7 +416,6 @@ const HomePage: React.FC = () => {
           </div>
         </div>
         
-        {/* Filters */}
         {showFilters && (
           <div className="mt-2 flex flex-wrap gap-2">
             {Object.entries(filters).map(([key, value]) => {
@@ -439,14 +448,16 @@ const HomePage: React.FC = () => {
         )}
       </div>
 
-      {/* Map view */}
       {view === 'map' ? (
         <div className="flex-1 relative">
-          {loading ? (
-            <div className="absolute inset-0 flex items-center justify-center bg-gray-100 dark:bg-dark-input">
-              <div className="w-12 h-12 border-4 border-primary-200 border-t-primary-600 rounded-full animate-spin"></div>
+          {loading && (
+            <div className="absolute inset-0 bg-black/20 backdrop-blur-sm z-10 flex items-center justify-center">
+              <div className="bg-white dark:bg-dark-card rounded-lg p-4 shadow-lg">
+                <div className="w-8 h-8 border-4 border-primary-200 border-t-primary-600 rounded-full animate-spin"></div>
+              </div>
             </div>
-          ) : mapError ? (
+          )}
+          {mapError ? (
             <div className="absolute inset-0 flex items-center justify-center bg-gray-100 dark:bg-dark-input">
               <p className="text-red-600 dark:text-red-400">{mapError}</p>
             </div>
