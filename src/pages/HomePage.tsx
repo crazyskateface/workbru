@@ -99,29 +99,38 @@ const HomePage: React.FC = () => {
     
     const workspace = workspaces.find(w => w.id === workspaceId);
     if (workspace && mapInstanceRef.current && mapsRef.current) {
-      // Calculate the pixel coordinates of the marker
-      const markerPos = new mapsRef.current.LatLng(
+      // Get the map's current bounds and projection
+      const bounds = mapInstanceRef.current.getBounds();
+      const projection = mapInstanceRef.current.getProjection();
+      
+      // Get the marker's position
+      const markerLatLng = new mapsRef.current.LatLng(
         workspace.location.latitude,
         workspace.location.longitude
       );
       
-      // Get the map's current bounds
-      const bounds = mapInstanceRef.current.getBounds();
-      const ne = bounds.getNorthEast();
-      const sw = bounds.getSouthWest();
+      // Convert marker position to pixel coordinates
+      const markerPoint = projection.fromLatLngToPoint(markerLatLng);
       
-      // Calculate the vertical center point about 1/3 from the bottom of the viewport
-      const targetLat = sw.lat() + ((ne.lat() - sw.lat()) * 0.4);
+      // Get the bounds in pixels
+      const ne = projection.fromLatLngToPoint(bounds.getNorthEast());
+      const sw = projection.fromLatLngToPoint(bounds.getSouthWest());
       
-      // Create the new center point
-      const newCenter = new mapsRef.current.LatLng(
-        targetLat,
+      // Calculate the map height in pixels
+      const mapHeight = Math.abs(ne.y - sw.y);
+      
+      // Calculate the target point (40% from bottom of viewport)
+      const targetY = sw.y + (mapHeight * 0.6); // 60% from top = 40% from bottom
+      
+      // Convert back to LatLng
+      const targetPoint = new mapsRef.current.Point(markerPoint.x, targetY);
+      const targetLatLng = projection.fromPointToLatLng(targetPoint);
+      
+      // Pan the map
+      mapInstanceRef.current.panTo(new mapsRef.current.LatLng(
+        targetLatLng.lat(),
         workspace.location.longitude
-      );
-      
-      // Smoothly pan to the new position
-      mapInstanceRef.current.panTo(newCenter);
-      // mapInstanceRef.current.setZoom(16); // Don't set a zoom when clicking.
+      ));
     }
     
     trackEvent('select_workspace', { workspace_id: workspaceId });
