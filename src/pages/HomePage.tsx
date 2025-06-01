@@ -336,6 +336,17 @@ const HomePage: React.FC = () => {
               </span>
             )}
           </button>
+
+          {userLocation && (
+            <button
+              onClick={handleGoToUserLocation}
+              className="px-4 py-2 bg-white dark:bg-dark-input hover:bg-gray-50 dark:hover:bg-dark-border text-gray-700 dark:text-gray-300 rounded-lg transition-colors duration-200 flex items-center gap-2"
+              title="Go to my location"
+            >
+              <Crosshair className="h-5 w-5" />
+              <span className="hidden sm:inline">My Location</span>
+            </button>
+          )}
           
           <div className="flex rounded-lg border border-gray-200 dark:border-dark-border overflow-hidden">
             <button
@@ -408,17 +419,6 @@ const HomePage: React.FC = () => {
           ) : (
             <div className="absolute inset-0">
               {renderMap()}
-              
-              {/* User location button */}
-              {userLocation && (
-                <button
-                  onClick={handleGoToUserLocation}
-                  className="absolute bottom-4 right-4 p-3 bg-white dark:bg-dark-card rounded-full shadow-lg hover:bg-gray-50 dark:hover:bg-dark-input transition-colors duration-200"
-                  title="Go to my location"
-                >
-                  <Crosshair className="h-5 w-5 text-primary-600 dark:text-primary-400" />
-                </button>
-              )}
             </div>
           )}
         </div>
