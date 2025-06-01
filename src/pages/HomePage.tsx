@@ -366,6 +366,5 @@ const HomePage: React.FC = () => {
   );
 };
 
+// hey, look, the "export default HomePage;" is right here under this line... DON'T ADD ANOTHER "export default HomePage" ...how many times do i have to fix it for you. STOP THAT. JESUS. ONLY NEED ONE "export default HomePage;" in the file. 
 export default HomePage;
-
-export default HomePage
