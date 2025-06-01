@@ -56,6 +56,19 @@ const cacheWorkspaces = (workspaces: Workspace[], bounds: CacheEntry['bounds']) 
   localStorage.setItem(CACHE_KEY, JSON.stringify(entry));
 };
 
+// Extract coordinates from PostGIS POINT string
+const extractCoordinates = (pointString: string) => {
+  // PostGIS POINT format is 'POINT(longitude latitude)'
+  const matches = pointString.match(/POINT\(([-\d.]+) ([-\d.]+)\)/);
+  if (!matches) {
+    throw new Error('Invalid PostGIS POINT format');
+  }
+  return {
+    longitude: parseFloat(matches[1]),
+    latitude: parseFloat(matches[2])
+  };
+};
+
 export async function getNearbyWorkspaces(
   latitude: number,
   longitude: number,
@@ -77,15 +90,12 @@ export async function getNearbyWorkspaces(
 
     if (error) throw error;
 
-    // Transform GeoJSON to lat/lng object
+    // Transform PostGIS POINT to lat/lng object
     const workspaces = data.map((workspace: any) => {
-      const location = JSON.parse(workspace.location);
+      const location = extractCoordinates(workspace.location);
       return {
         ...workspace,
-        location: {
-          latitude: location.coordinates[1],
-          longitude: location.coordinates[0]
-        }
+        location
       };
     });
 
