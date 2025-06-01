@@ -66,3 +66,11 @@ export interface FilterOptions {
   minCoffeeRating?: number;
   maxDistance?: number;
 }
+
+export interface MapPosition {
+  center: {
+    lat: number;
+    lng: number;
+  };
+  zoom: number;
+}

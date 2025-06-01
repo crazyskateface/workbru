@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { Wifi, Coffee, Power, Users, Clock, Search, List, MapIcon, Filter, Star, MapPin, ChevronRight } from 'lucide-react';
+import { Wifi, Coffee, Power, Users, Clock, Search, List, MapIcon, Filter, Star, MapPin, ChevronRight, Crosshair } from 'lucide-react';
 import GoogleMapReact from 'google-map-react';
 import { fetchNearbyWorkspaces } from '../lib/googlePlaces';
-import { Workspace, FilterOptions } from '../types';
+import { Workspace, FilterOptions, MapPosition } from '../types';
 
 interface MarkerProps {
   lat: number;
@@ -101,6 +101,15 @@ const HomePage: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [mapError, setMapError] = useState<string | null>(null);
   const [mapReady, setMapReady] = useState(false);
+  const [mapPosition, setMapPosition] = useState<MapPosition>(() => {
+    const saved = localStorage.getItem('mapPosition');
+    return saved ? JSON.parse(saved) : {
+      center: { lat: 37.7749, lng: -122.4194 },
+      zoom: 13
+    };
+  });
+  const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
+  
   const [filters, setFilters] = useState<FilterOptions>({
     wifi: false,
     coffee: false,
@@ -114,30 +123,42 @@ const HomePage: React.FC = () => {
   const mapRef = useRef<any>(null);
   const mapsRef = useRef<any>(null);
 
-  const defaultCenter = {
-    lat: 37.7749,
-    lng: -122.4194
-  };
+  // Get user's location on initial load
+  useEffect(() => {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const location = {
+            lat: position.coords.latitude,
+            lng: position.coords.longitude
+          };
+          setUserLocation(location);
+          
+          // Only set map position if there's no saved position
+          if (!localStorage.getItem('mapPosition')) {
+            setMapPosition({
+              center: location,
+              zoom: 13
+            });
+          }
+        },
+        (error) => {
+          console.error('Error getting location:', error);
+        }
+      );
+    }
+  }, []);
 
-  const defaultMapOptions = {
-    fullscreenControl: false,
-    zoomControl: true,
-    clickableIcons: false,
-    scrollwheel: true,
-    styles: [
-      {
-        featureType: 'poi',
-        elementType: 'labels',
-        stylers: [{ visibility: 'off' }]
-      }
-    ]
-  };
-
+  // Load workspaces based on map position
   useEffect(() => {
     const loadWorkspaces = async () => {
       try {
         setLoading(true);
-        const spaces = await fetchNearbyWorkspaces(defaultCenter.lat, defaultCenter.lng);
+        const spaces = await fetchNearbyWorkspaces(
+          mapPosition.center.lat,
+          mapPosition.center.lng,
+          5000 // 5km radius
+        );
         setWorkspaces(spaces);
       } catch (error) {
         console.error('Error fetching workspaces:', error);
@@ -147,7 +168,12 @@ const HomePage: React.FC = () => {
     };
 
     loadWorkspaces();
-  }, []);
+  }, [mapPosition.center]);
+
+  // Save map position to localStorage when it changes
+  useEffect(() => {
+    localStorage.setItem('mapPosition', JSON.stringify(mapPosition));
+  }, [mapPosition]);
 
   // Reset selected workspace when view changes
   useEffect(() => {
@@ -178,6 +204,16 @@ const HomePage: React.FC = () => {
     mapRef.current = map;
     mapsRef.current = maps;
     setMapReady(true);
+
+    // Add bounds_changed event listener
+    map.addListener('bounds_changed', () => {
+      const center = map.getCenter();
+      const zoom = map.getZoom();
+      setMapPosition({
+        center: { lat: center.lat(), lng: center.lng() },
+        zoom
+      });
+    });
   };
 
   const handleMarkerClick = (workspaceId: string) => {
@@ -201,6 +237,13 @@ const HomePage: React.FC = () => {
     }
   };
 
+  const handleGoToUserLocation = () => {
+    if (!userLocation || !mapRef.current) return;
+    
+    mapRef.current.panTo(userLocation);
+    mapRef.current.setZoom(14);
+  };
+
   const renderMap = () => {
     if (!import.meta.env.VITE_GOOGLE_MAPS_API_KEY) {
       return (
@@ -217,8 +260,8 @@ const HomePage: React.FC = () => {
           key: import.meta.env.VITE_GOOGLE_MAPS_API_KEY,
           libraries: ['places']
         }}
-        defaultCenter={defaultCenter}
-        defaultZoom={13}
+        center={mapPosition.center}
+        zoom={mapPosition.zoom}
         onError={handleGoogleMapError}
         options={defaultMapOptions}
         yesIWantToUseGoogleMapApiInternals
@@ -351,6 +394,17 @@ const HomePage: React.FC = () => {
           ) : (
             <div className="absolute inset-0">
               {renderMap()}
+              
+              {/* User location button */}
+              {userLocation && (
+                <button
+                  onClick={handleGoToUserLocation}
+                  className="absolute bottom-4 right-4 p-3 bg-white dark:bg-dark-card rounded-full shadow-lg hover:bg-gray-50 dark:hover:bg-dark-input transition-colors duration-200"
+                  title="Go to my location"
+                >
+                  <Crosshair className="h-5 w-5 text-primary-600 dark:text-primary-400" />
+                </button>
+              )}
             </div>
           )}
         </div>
