@@ -247,16 +247,6 @@ const HomePage: React.FC = () => {
     mapRef.current = map;
     mapsRef.current = maps;
     setMapReady(true);
-
-    // Add bounds_changed event listener
-    map.addListener('bounds_changed', () => {
-      const center = map.getCenter();
-      const zoom = map.getZoom();
-      setMapPosition({
-        center: { lat: center.lat(), lng: center.lng() },
-        zoom
-      });
-    });
   };
 
   const handleMarkerClick = (workspaceId: string) => {
