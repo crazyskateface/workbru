@@ -121,7 +121,7 @@ const HomePage: React.FC = () => {
       
       // Smoothly pan to the new position
       mapInstanceRef.current.panTo(newCenter);
-      mapInstanceRef.current.setZoom(16);
+      // mapInstanceRef.current.setZoom(16); // Don't set a zoom when clicking.
     }
     
     trackEvent('select_workspace', { workspace_id: workspaceId });
