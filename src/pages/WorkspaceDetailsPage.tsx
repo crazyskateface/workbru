@@ -2,8 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { MapPin, Wifi, Coffee, Power, Users, Clock, ChevronLeft, Star, Calendar, Clock8, MapIcon, Share2, Bookmark, BookmarkCheck } from 'lucide-react';
 import GoogleMapReact from 'google-map-react';
-import { fetchWorkspaceDetails } from '../lib/googlePlaces';
+import { getWorkspaceById } from '../lib/workspaces';
 import { Workspace } from '../types';
+import { useAnalytics } from '../hooks/useAnalytics';
 
 interface MarkerProps {
   lat: number;
@@ -15,7 +16,7 @@ const Marker: React.FC<MarkerProps> = ({ isCoffeeShop }) => (
   <div className="absolute -translate-x-1/2 -translate-y-full">
     {isCoffeeShop ? (
       <img 
-        src="/574fab03-08d5-4e82-bcc5-a23023adfed3.png" 
+        src="/marker-coffee.png" 
         alt="Coffee Shop"
         className="w-10 h-12"
       />
@@ -35,14 +36,32 @@ const WorkspaceDetailsPage: React.FC = () => {
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
   const [isBookmarked, setIsBookmarked] = useState(false);
   const [loading, setLoading] = useState(true);
+  const { trackEvent } = useAnalytics();
 
   useEffect(() => {
     const loadWorkspace = async () => {
       if (!id) return;
       try {
         setLoading(true);
-        const data = await fetchWorkspaceDetails(id);
+        const data = await getWorkspaceById(id);
+        
+        // Parse location from GeoJSON format
+        if (data.location && typeof data.location === 'object') {
+          const locationObj = JSON.parse(JSON.stringify(data.location));
+          if (locationObj.coordinates) {
+            data.location = {
+              longitude: locationObj.coordinates[0],
+              latitude: locationObj.coordinates[1]
+            };
+          }
+        }
+        
         setWorkspace(data);
+        
+        trackEvent('view_workspace', {
+          workspace_id: id,
+          workspace_name: data.name
+        });
       } catch (error) {
         console.error('Error loading workspace:', error);
       } finally {
@@ -51,20 +70,7 @@ const WorkspaceDetailsPage: React.FC = () => {
     };
 
     loadWorkspace();
-  }, [id]);
-
-  const defaultMapOptions = {
-    fullscreenControl: false,
-    zoomControl: true,
-    clickableIcons: false,
-    styles: [
-      {
-        featureType: 'poi',
-        elementType: 'labels',
-        stylers: [{ visibility: 'off' }]
-      }
-    ]
-  };
+  }, [id, trackEvent]);
 
   if (loading) {
     return (
@@ -167,8 +173,18 @@ const WorkspaceDetailsPage: React.FC = () => {
                     lng: workspace.location.longitude
                   }}
                   defaultZoom={15}
-                  options={defaultMapOptions}
-                  yesIWantToUseGoogleMapApiInternals
+                  options={{
+                    fullscreenControl: false,
+                    zoomControl: true,
+                    clickableIcons: false,
+                    styles: [
+                      {
+                        featureType: 'poi',
+                        elementType: 'labels',
+                        stylers: [{ visibility: 'off' }]
+                      }
+                    ]
+                  }}
                 >
                   <Marker
                     lat={workspace.location.latitude}
