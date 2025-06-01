@@ -1,6 +1,4 @@
-// This would be replaced with actual Google Places API integration
-// For MVP, we'll mock the API calls
-
+import { supabase } from './supabase';
 import { Workspace } from '../types';
 
 // Mock data for development
@@ -134,24 +132,53 @@ export async function fetchNearbyWorkspaces(
   longitude: number,
   radius: number = 5000
 ): Promise<Workspace[]> {
-  // In a real app, this would call the Google Places API
-  // For MVP, return mock data
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      resolve(mockWorkspaces);
-    }, 500);
-  });
+  try {
+    const { data, error } = await supabase.rpc('get_nearby_workspaces', {
+      lat: latitude,
+      lng: longitude,
+      radius_km: radius / 1000
+    });
+
+    if (error) throw error;
+
+    // Transform location data from GeoJSON to our format
+    return data.map((workspace: any) => ({
+      ...workspace,
+      location: {
+        latitude: workspace.location.coordinates[1],
+        longitude: workspace.location.coordinates[0]
+      }
+    }));
+  } catch (error) {
+    console.error('Error fetching workspaces:', error);
+    return mockWorkspaces;
+  }
 }
 
-export async function fetchWorkspaceDetails(placeId: string): Promise<Workspace | null> {
-  // In a real app, this would call the Google Places API to get details
-  // For MVP, return mock data
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      const workspace = mockWorkspaces.find(w => w.id === placeId);
-      resolve(workspace || null);
-    }, 300);
-  });
+export async function fetchWorkspaceDetails(id: string): Promise<Workspace | null> {
+  try {
+    const { data, error } = await supabase
+      .from('workspaces')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (error) throw error;
+    if (!data) return null;
+
+    // Parse location from GeoJSON format
+    const locationObj = JSON.parse(data.location);
+    return {
+      ...data,
+      location: {
+        latitude: locationObj.coordinates[1],
+        longitude: locationObj.coordinates[0]
+      }
+    };
+  } catch (error) {
+    console.error('Error fetching workspace details:', error);
+    return mockWorkspaces.find(w => w.id === id) || null;
+  }
 }
 
 export async function searchWorkspaces(query: string): Promise<Workspace[]> {
