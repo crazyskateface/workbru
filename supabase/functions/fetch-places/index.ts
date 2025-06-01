@@ -39,6 +39,21 @@ const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 // Constants
 const MAX_PLACES_PER_REQUEST = 25; // Updated to 25 places per request
 
+// Coffee chains to include in search
+const COFFEE_CHAINS = [
+  'coffee shop',
+  'Starbucks',
+  'Peet\'s Coffee',
+  '7 Brew Coffee',
+  'Dutch Bros Coffee'
+];
+
+// Other workspace types
+const WORKSPACE_TYPES = [
+  'library',
+  'coworking space'
+];
+
 // Validate required environment variables
 function validateEnvironment() {
   const missing = [];
@@ -200,13 +215,15 @@ serve(async (req) => {
       );
     }
 
-    const placeTypes = ['coffee shop', 'library', 'coworking space'];
     const existingPlaceIds = await getExistingPlaceIds();
     let allNewPlaceIds: string[] = [];
     let nextPageTokens: Record<string, string | undefined> = {};
 
+    // Combine coffee chains and workspace types
+    const allTypes = [...COFFEE_CHAINS, ...WORKSPACE_TYPES];
+
     // Fetch place IDs from all types
-    for (const type of placeTypes) {
+    for (const type of allTypes) {
       const result = await searchPlaces(city, type);
       allNewPlaceIds.push(...result.placeIds);
       if (result.nextPageToken) {
