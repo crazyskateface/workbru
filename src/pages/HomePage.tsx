@@ -120,8 +120,13 @@ const HomePage: React.FC = () => {
     trackEvent('select_workspace', { workspace_id: workspaceId });
   }, [workspaces, trackEvent]);
 
-  const handleMapClick = useCallback(() => {
-    setSelectedWorkspace(null);
+  const handleMapClick = useCallback((event: any) => {
+    // Only close the info window if clicking on the map itself
+    // Check if the click target is the map container
+    const isMapClick = event.target === mapInstanceRef.current.getDiv();
+    if (isMapClick) {
+      setSelectedWorkspace(null);
+    }
   }, []);
 
   const handleGoToUserLocation = useCallback(() => {
@@ -362,3 +367,5 @@ const HomePage: React.FC = () => {
 };
 
 export default HomePage;
+
+export default HomePage
