@@ -5,6 +5,20 @@ import GoogleMapReact from 'google-map-react';
 import { fetchNearbyWorkspaces } from '../lib/googlePlaces';
 import { Workspace, FilterOptions, MapPosition } from '../types';
 
+// Define default map options
+const defaultMapOptions = {
+  fullscreenControl: false,
+  zoomControl: true,
+  clickableIcons: false,
+  styles: [
+    {
+      featureType: 'poi',
+      elementType: 'labels',
+      stylers: [{ visibility: 'off' }]
+    }
+  ]
+};
+
 interface MarkerProps {
   lat: number;
   lng: number;
