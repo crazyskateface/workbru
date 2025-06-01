@@ -77,7 +77,7 @@ export async function getNearbyWorkspaces(
 
     if (error) throw error;
 
-    // Transform PostGIS point to lat/lng object
+    // Transform GeoJSON to lat/lng object
     const workspaces = data.map((workspace: any) => ({
       ...workspace,
       location: {
