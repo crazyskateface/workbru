@@ -78,13 +78,16 @@ export async function getNearbyWorkspaces(
     if (error) throw error;
 
     // Transform GeoJSON to lat/lng object
-    const workspaces = data.map((workspace: any) => ({
-      ...workspace,
-      location: {
-        latitude: workspace.location.coordinates[1],
-        longitude: workspace.location.coordinates[0]
-      }
-    }));
+    const workspaces = data.map((workspace: any) => {
+      const location = JSON.parse(workspace.location);
+      return {
+        ...workspace,
+        location: {
+          latitude: location.coordinates[1],
+          longitude: location.coordinates[0]
+        }
+      };
+    });
 
     // Cache the results with the current viewport bounds
     const bounds = {

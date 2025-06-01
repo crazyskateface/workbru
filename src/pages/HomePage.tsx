@@ -140,7 +140,6 @@ const HomePage: React.FC = () => {
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [selectedWorkspace, setSelectedWorkspace] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [showFilters, setShowFilters] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [mapError, setMapError] = useState<string | null>(null);
   const [mapReady, setMapReady] = useState(false);
@@ -323,6 +322,7 @@ const HomePage: React.FC = () => {
             zoom={mapPosition.zoom}
             onError={handleGoogleMapError}
             options={defaultMapOptions}
+            onChange={handleBoundsChange}
             yesIWantToUseGoogleMapApiInternals
             onGoogleApiLoaded={handleApiLoaded}
           >
