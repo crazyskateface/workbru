@@ -120,6 +120,10 @@ const HomePage: React.FC = () => {
     trackEvent('select_workspace', { workspace_id: workspaceId });
   }, [workspaces, trackEvent]);
 
+  const handleMapClick = useCallback(() => {
+    setSelectedWorkspace(null);
+  }, []);
+
   const handleGoToUserLocation = useCallback(() => {
     if (userLocation) {
       setMapCenter({
@@ -161,6 +165,9 @@ const HomePage: React.FC = () => {
   const handleApiLoaded = ({ map, maps }: { map: any; maps: any }) => {
     mapInstanceRef.current = map;
     mapsRef.current = maps;
+
+    // Add click listener to map
+    map.addListener('click', handleMapClick);
   };
 
   const renderMap = () => (
@@ -192,6 +199,7 @@ const HomePage: React.FC = () => {
           workspace={workspace}
           isSelected={workspace.id === selectedWorkspace}
           onClick={() => handleMarkerClick(workspace.id!)}
+          onClose={() => setSelectedWorkspace(null)}
         />
       ))}
     </GoogleMapReact>

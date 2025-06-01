@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Star, Wifi, Coffee, Clock, ChevronRight } from 'lucide-react';
+import { Star, Wifi, Coffee, Clock, ChevronRight, X } from 'lucide-react';
 import { Workspace } from '../../types';
 
 interface MarkerProps {
@@ -9,9 +9,10 @@ interface MarkerProps {
   workspace: Workspace;
   isSelected: boolean;
   onClick: () => void;
+  onClose: () => void;
 }
 
-const Marker: React.FC<MarkerProps> = ({ workspace, isSelected, onClick }) => {
+const Marker: React.FC<MarkerProps> = ({ workspace, isSelected, onClick, onClose }) => {
   const getMarkerImage = () => {
     // Check if it's a library first
     if (workspace.amenities.wifi && !workspace.amenities.coffee) {
@@ -25,6 +26,10 @@ const Marker: React.FC<MarkerProps> = ({ workspace, isSelected, onClick }) => {
     return "/marker-coffee.png";
   };
 
+  const handleInfoClick = (e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent marker click when clicking info window
+  };
+
   return (
     <div 
       className={`absolute cursor-pointer transform -translate-x-1/2 -translate-y-full transition-transform duration-200 ${isSelected ? 'z-10 scale-110' : ''}`}
@@ -36,8 +41,19 @@ const Marker: React.FC<MarkerProps> = ({ workspace, isSelected, onClick }) => {
         className="w-10 h-12"
       />
       {isSelected && (
-        <div className="absolute -top-2 left-1/2 -translate-x-1/2 -translate-y-full w-64">
+        <div 
+          className="absolute -top-2 left-1/2 -translate-x-1/2 -translate-y-full w-64"
+          onClick={handleInfoClick}
+        >
           <div className="bg-white dark:bg-dark-card rounded-lg shadow-lg overflow-hidden">
+            <div className="absolute top-2 right-2 z-10">
+              <button
+                onClick={onClose}
+                className="p-1 bg-black/50 hover:bg-black/70 rounded-full text-white transition-colors duration-200"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
             {workspace.photos && workspace.photos.length > 0 && (
               <img 
                 src={workspace.photos[0]} 
