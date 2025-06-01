@@ -6,86 +6,184 @@ import { getNearbyWorkspaces } from '../lib/workspaces';
 import { Workspace, FilterOptions, MapPosition } from '../types';
 import { useAnalytics } from '../hooks/useAnalytics';
 
-// ... (previous code remains the same until loadWorkspaces function)
+interface MarkerProps {
+  lat: number;
+  lng: number;
+  workspace: Workspace;
+  onClick: () => void;
+}
 
-const loadWorkspaces = useCallback(async (lat: number, lng: number, force: boolean = false) => {
-  if (loadingRef.current) return;
+const Marker: React.FC<MarkerProps> = ({ workspace, onClick }) => (
+  <div 
+    className="relative cursor-pointer transform -translate-x-1/2 -translate-y-full"
+    onClick={onClick}
+  >
+    <div className="p-2 bg-white rounded-lg shadow-lg flex items-center gap-2 hover:bg-gray-50">
+      <Coffee className="h-4 w-4 text-primary-600" />
+      <span className="text-sm font-medium">{workspace.name}</span>
+    </div>
+    <div className="absolute -bottom-1 left-1/2 transform -translate-x-1/2 rotate-45 w-2 h-2 bg-white"></div>
+  </div>
+);
+
+const HomePage: React.FC = () => {
+  const [view, setView] = useState<'list' | 'map'>('map');
+  const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [mapError, setMapError] = useState<string | null>(null);
+  const [userLocation, setUserLocation] = useState<MapPosition | null>(null);
+  const [mapCenter, setMapCenter] = useState<MapPosition>({
+    lat: 40.7128,
+    lng: -74.0060
+  });
+  const [filters, setFilters] = useState<FilterOptions>({
+    wifi: false,
+    coffee: false,
+    power: false,
+    seating: false,
+    meetingRooms: false
+  });
   
-  try {
-    loadingRef.current = true;
-    setLoading(true);
-    setMapError(null); // Clear any previous errors
+  const loadingRef = useRef(false);
+  const mapRef = useRef<any>(null);
+  const { trackEvent } = useAnalytics();
+
+  const loadWorkspaces = useCallback(async (lat: number, lng: number, force: boolean = false) => {
+    if (loadingRef.current) return;
     
-    const spaces = await getNearbyWorkspaces(lat, lng, 5, force);
-    setWorkspaces(spaces);
-    
-    // Show a message if no workspaces found
-    if (spaces.length === 0) {
-      setMapError('No workspaces found in this area. Try searching in a different location or adjusting your filters.');
+    try {
+      loadingRef.current = true;
+      setLoading(true);
+      setMapError(null);
+      
+      const spaces = await getNearbyWorkspaces(lat, lng, 5, force);
+      setWorkspaces(spaces);
+      
+      if (spaces.length === 0) {
+        setMapError('No workspaces found in this area. Try searching in a different location or adjusting your filters.');
+      }
+      
+      trackEvent('load_workspaces', {
+        latitude: lat,
+        longitude: lng,
+        count: spaces.length
+      });
+    } catch (error) {
+      console.error('Error fetching workspaces:', error);
+      setMapError('Failed to load workspaces. Please try again.');
+    } finally {
+      setLoading(false);
+      loadingRef.current = false;
     }
-    
-    trackEvent('load_workspaces', {
-      latitude: lat,
-      longitude: lng,
-      count: spaces.length
-    });
-  } catch (error) {
-    console.error('Error fetching workspaces:', error);
-    setMapError('Failed to load workspaces. Please try again.');
-  } finally {
-    setLoading(false);
-    loadingRef.current = false;
-  }
-}, [trackEvent]);
+  }, [trackEvent]);
 
-// ... (rest of the code remains the same until the return statement)
+  const handleMapChange = useCallback(({ center, bounds, zoom }: any) => {
+    setMapCenter(center);
+    loadWorkspaces(center.lat, center.lng);
+  }, [loadWorkspaces]);
 
-return (
-  <div className="h-screen flex flex-col relative">
-    {/* ... (previous code remains the same) ... */}
-    
-    {view === 'map' ? (
-      <div className="flex-1 relative">
-        {loading && (
-          <div className="absolute inset-0 bg-black/20 backdrop-blur-sm z-10 flex items-center justify-center">
-            <div className="bg-white dark:bg-dark-card rounded-lg p-4 shadow-lg">
-              <div className="w-8 h-8 border-4 border-primary-200 border-t-primary-600 rounded-full animate-spin"></div>
+  const handleGoToUserLocation = useCallback(() => {
+    if (userLocation) {
+      setMapCenter(userLocation);
+      loadWorkspaces(userLocation.lat, userLocation.lng, true);
+    }
+  }, [userLocation, loadWorkspaces]);
+
+  useEffect(() => {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const location = {
+            lat: position.coords.latitude,
+            lng: position.coords.longitude
+          };
+          setUserLocation(location);
+          setMapCenter(location);
+          loadWorkspaces(location.lat, location.lng);
+        },
+        (error) => {
+          console.error('Error getting location:', error);
+          loadWorkspaces(mapCenter.lat, mapCenter.lng);
+        }
+      );
+    } else {
+      loadWorkspaces(mapCenter.lat, mapCenter.lng);
+    }
+  }, [loadWorkspaces, mapCenter.lat, mapCenter.lng]);
+
+  const renderMap = () => (
+    <GoogleMapReact
+      bootstrapURLKeys={{ key: import.meta.env.VITE_GOOGLE_MAPS_API_KEY }}
+      center={mapCenter}
+      defaultZoom={14}
+      onChange={handleMapChange}
+      yesIWantToUseGoogleMapApiInternals
+      onGoogleApiLoaded={({ map }) => { mapRef.current = map; }}
+    >
+      {workspaces.map((workspace) => (
+        <Marker
+          key={workspace.id}
+          lat={workspace.location.coordinates[1]}
+          lng={workspace.location.coordinates[0]}
+          workspace={workspace}
+          onClick={() => {
+            trackEvent('select_workspace', { workspace_id: workspace.id });
+          }}
+        />
+      ))}
+    </GoogleMapReact>
+  );
+
+  return (
+    <div className="h-screen flex flex-col relative">
+      <div className="bg-white dark:bg-dark-card shadow-sm">
+        <div className="container mx-auto px-4 py-4">
+          <div className="flex items-center gap-4">
+            <div className="flex-1 relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Search workspaces..."
+                className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-200 dark:border-dark-border focus:outline-none focus:ring-2 focus:ring-primary-500 dark:bg-dark-input"
+              />
             </div>
-          </div>
-        )}
-        {mapError ? (
-          <div className="absolute inset-0 flex flex-col items-center justify-center bg-gray-100 dark:bg-dark-input">
-            <AlertCircle className="h-12 w-12 text-primary-600 dark:text-primary-400 mb-4" />
-            <p className="text-gray-600 dark:text-gray-400 text-center max-w-md px-4">{mapError}</p>
-            {userLocation && (
+            <div className="flex items-center gap-2">
               <button
-                onClick={handleGoToUserLocation}
-                className="mt-4 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors duration-200 flex items-center gap-2"
+                onClick={() => setView('list')}
+                className={`p-2 rounded-lg ${view === 'list' ? 'bg-primary-100 text-primary-600 dark:bg-primary-900 dark:text-primary-400' : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-dark-hover'}`}
               >
-                <Crosshair className="h-5 w-5" />
-                Try near my location
+                <List className="h-5 w-5" />
               </button>
-            )}
-          </div>
-        ) : (
-          <div className="absolute inset-0">
-            {renderMap()}
-          </div>
-        )}
-      </div>
-    ) : (
-      <div className="flex-1 overflow-auto">
-        <div className="container mx-auto py-6 px-4">
-          {loading ? (
-            <div className="flex justify-center py-12">
-              <div className="w-12 h-12 border-4 border-primary-200 border-t-primary-600 rounded-full animate-spin"></div>
+              <button
+                onClick={() => setView('map')}
+                className={`p-2 rounded-lg ${view === 'map' ? 'bg-primary-100 text-primary-600 dark:bg-primary-900 dark:text-primary-400' : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-dark-hover'}`}
+              >
+                <MapIcon className="h-5 w-5" />
+              </button>
+              <button
+                onClick={() => {/* Toggle filters */}}
+                className="p-2 rounded-lg text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-dark-hover"
+              >
+                <Filter className="h-5 w-5" />
+              </button>
             </div>
-          ) : workspaces.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12">
+          </div>
+        </div>
+      </div>
+
+      {view === 'map' ? (
+        <div className="flex-1 relative">
+          {loading && (
+            <div className="absolute inset-0 bg-black/20 backdrop-blur-sm z-10 flex items-center justify-center">
+              <div className="bg-white dark:bg-dark-card rounded-lg p-4 shadow-lg">
+                <div className="w-8 h-8 border-4 border-primary-200 border-t-primary-600 rounded-full animate-spin"></div>
+              </div>
+            </div>
+          )}
+          {mapError ? (
+            <div className="absolute inset-0 flex flex-col items-center justify-center bg-gray-100 dark:bg-dark-input">
               <AlertCircle className="h-12 w-12 text-primary-600 dark:text-primary-400 mb-4" />
-              <p className="text-gray-600 dark:text-gray-400 text-center max-w-md">
-                No workspaces found in this area. Try searching in a different location or adjusting your filters.
-              </p>
+              <p className="text-gray-600 dark:text-gray-400 text-center max-w-md px-4">{mapError}</p>
               {userLocation && (
                 <button
                   onClick={handleGoToUserLocation}
@@ -97,16 +195,112 @@ return (
               )}
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {/* ... (existing workspace cards code) ... */}
+            <div className="absolute inset-0">
+              {renderMap()}
             </div>
           )}
         </div>
-      </div>
-    )}
-  </div>
-);
+      ) : (
+        <div className="flex-1 overflow-auto">
+          <div className="container mx-auto py-6 px-4">
+            {loading ? (
+              <div className="flex justify-center py-12">
+                <div className="w-12 h-12 border-4 border-primary-200 border-t-primary-600 rounded-full animate-spin"></div>
+              </div>
+            ) : workspaces.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12">
+                <AlertCircle className="h-12 w-12 text-primary-600 dark:text-primary-400 mb-4" />
+                <p className="text-gray-600 dark:text-gray-400 text-center max-w-md">
+                  No workspaces found in this area. Try searching in a different location or adjusting your filters.
+                </p>
+                {userLocation && (
+                  <button
+                    onClick={handleGoToUserLocation}
+                    className="mt-4 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors duration-200 flex items-center gap-2"
+                  >
+                    <Crosshair className="h-5 w-5" />
+                    Try near my location
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {workspaces.map((workspace) => (
+                  <Link
+                    key={workspace.id}
+                    to={`/workspace/${workspace.id}`}
+                    className="bg-white dark:bg-dark-card rounded-lg shadow-sm hover:shadow-md transition-shadow duration-200"
+                  >
+                    <div className="aspect-video relative rounded-t-lg overflow-hidden">
+                      {workspace.photos && workspace.photos[0] ? (
+                        <img
+                          src={workspace.photos[0]}
+                          alt={workspace.name}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-full h-full bg-gray-200 dark:bg-dark-hover flex items-center justify-center">
+                          <Coffee className="h-12 w-12 text-gray-400 dark:text-gray-600" />
+                        </div>
+                      )}
+                    </div>
+                    <div className="p-4">
+                      <div className="flex items-start justify-between gap-2">
+                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                          {workspace.name}
+                        </h3>
+                        {workspace.attributes.rating && (
+                          <div className="flex items-center gap-1">
+                            <Star className="h-4 w-4 text-yellow-400 fill-current" />
+                            <span className="text-sm text-gray-600 dark:text-gray-400">
+                              {workspace.attributes.rating}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                      <p className="mt-1 text-sm text-gray-600 dark:text-gray-400 flex items-center gap-1">
+                        <MapPin className="h-4 w-4" />
+                        {workspace.address}
+                      </p>
+                      <div className="mt-4 flex items-center gap-2">
+                        {workspace.amenities.wifi && (
+                          <span className="p-1 bg-primary-100 dark:bg-primary-900 rounded">
+                            <Wifi className="h-4 w-4 text-primary-600 dark:text-primary-400" />
+                          </span>
+                        )}
+                        {workspace.amenities.coffee && (
+                          <span className="p-1 bg-primary-100 dark:bg-primary-900 rounded">
+                            <Coffee className="h-4 w-4 text-primary-600 dark:text-primary-400" />
+                          </span>
+                        )}
+                        {workspace.amenities.outlets && (
+                          <span className="p-1 bg-primary-100 dark:bg-primary-900 rounded">
+                            <Power className="h-4 w-4 text-primary-600 dark:text-primary-400" />
+                          </span>
+                        )}
+                        {workspace.amenities.seating && (
+                          <span className="p-1 bg-primary-100 dark:bg-primary-900 rounded">
+                            <Users className="h-4 w-4 text-primary-600 dark:text-primary-400" />
+                          </span>
+                        )}
+                      </div>
+                      <div className="mt-4 flex items-center justify-between">
+                        <div className="flex items-center gap-1 text-sm text-gray-600 dark:text-gray-400">
+                          <Clock className="h-4 w-4" />
+                          <span>{workspace.attributes.openLate ? 'Open Late' : 'Regular Hours'}</span>
+                        </div>
+                        <ChevronRight className="h-5 w-5 text-gray-400" />
+                      </div>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
 
-// ... (rest of the code remains the same)
-
-export default loadWorkspaces
+export default HomePage;
