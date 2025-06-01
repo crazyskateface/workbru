@@ -143,6 +143,7 @@ const HomePage: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [mapError, setMapError] = useState<string | null>(null);
   const [mapReady, setMapReady] = useState(false);
+  const [showFilters, setShowFilters] = useState(false);
   const [mapPosition, setMapPosition] = useState<MapPosition>(() => {
     const saved = localStorage.getItem('mapPosition');
     return saved ? JSON.parse(saved) : {
