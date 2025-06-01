@@ -99,12 +99,28 @@ const HomePage: React.FC = () => {
     
     const workspace = workspaces.find(w => w.id === workspaceId);
     if (workspace && mapInstanceRef.current && mapsRef.current) {
-      const newCenter = {
-        lat: workspace.location.latitude,
-        lng: workspace.location.longitude
-      };
+      // Calculate the pixel coordinates of the marker
+      const markerPos = new mapsRef.current.LatLng(
+        workspace.location.latitude,
+        workspace.location.longitude
+      );
       
-      mapInstanceRef.current.panTo(new mapsRef.current.LatLng(newCenter.lat, newCenter.lng));
+      // Get the map's current bounds
+      const bounds = mapInstanceRef.current.getBounds();
+      const ne = bounds.getNorthEast();
+      const sw = bounds.getSouthWest();
+      
+      // Calculate the vertical center point about 1/3 from the bottom of the viewport
+      const targetLat = sw.lat() + ((ne.lat() - sw.lat()) * 0.4);
+      
+      // Create the new center point
+      const newCenter = new mapsRef.current.LatLng(
+        targetLat,
+        workspace.location.longitude
+      );
+      
+      // Smoothly pan to the new position
+      mapInstanceRef.current.panTo(newCenter);
       mapInstanceRef.current.setZoom(16);
     }
     
