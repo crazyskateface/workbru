@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuthStore } from './stores/authStore';
 import { useAnalytics } from './hooks/useAnalytics';
 
@@ -44,7 +44,7 @@ function App() {
     }
     
     if (requireAdmin && user.role !== 'admin') {
-      return <Navigate to="/app\" replace />;
+      return <Navigate to="/app" replace />;
     }
     
     return <>{children}</>;
@@ -52,44 +52,42 @@ function App() {
 
   return (
     <ThemeProvider>
-      <Router>
-        <Routes>
-          {/* Public routes */}
-          <Route path="/" element={
-            user ? <Navigate to="/app\" replace /> : <LandingPage />
-          } />
-          <Route path="/login" element={
-            user ? <Navigate to="/app\" replace /> : <LoginPage />
-          } />
-          <Route path="/register" element={
-            user ? <Navigate to="/app\" replace /> : <RegisterPage />
-          } />
-          
-          {/* User routes */}
-          <Route path="/app" element={
-            <ProtectedRoute>
-              <MainLayout />
-            </ProtectedRoute>
-          }>
-            <Route index element={<HomePage />} />
-            <Route path="workspace/:id" element={<WorkspaceDetailsPage />} />
-          </Route>
-          
-          {/* Admin routes */}
-          <Route path="/admin" element={
-            <ProtectedRoute requireAdmin>
-              <AdminLayout />
-            </ProtectedRoute>
-          }>
-            <Route index element={<AdminDashboard />} />
-            <Route path="workspaces" element={<AdminWorkspaces />} />
-            <Route path="users" element={<AdminUsers />} />
-          </Route>
-          
-          {/* 404 page */}
-          <Route path="*" element={<NotFoundPage />} />
-        </Routes>
-      </Router>
+      <Routes>
+        {/* Public routes */}
+        <Route path="/" element={
+          user ? <Navigate to="/app" replace /> : <LandingPage />
+        } />
+        <Route path="/login" element={
+          user ? <Navigate to="/app" replace /> : <LoginPage />
+        } />
+        <Route path="/register" element={
+          user ? <Navigate to="/app" replace /> : <RegisterPage />
+        } />
+        
+        {/* User routes */}
+        <Route path="/app" element={
+          <ProtectedRoute>
+            <MainLayout />
+          </ProtectedRoute>
+        }>
+          <Route index element={<HomePage />} />
+          <Route path="workspace/:id" element={<WorkspaceDetailsPage />} />
+        </Route>
+        
+        {/* Admin routes */}
+        <Route path="/admin" element={
+          <ProtectedRoute requireAdmin>
+            <AdminLayout />
+          </ProtectedRoute>
+        }>
+          <Route index element={<AdminDashboard />} />
+          <Route path="workspaces" element={<AdminWorkspaces />} />
+          <Route path="users" element={<AdminUsers />} />
+        </Route>
+        
+        {/* 404 page */}
+        <Route path="*" element={<NotFoundPage />} />
+      </Routes>
     </ThemeProvider>
   );
 }
