@@ -7,10 +7,7 @@ interface Workspace {
   name: string;
   description: string;
   address: string;
-  location: {
-    latitude: number;
-    longitude: number;
-  };
+  location: string; // Changed to string for PostGIS POINT format
   amenities: {
     wifi: boolean;
     coffee: boolean;
@@ -146,6 +143,11 @@ function determineAttributes(types: string[], rating?: number) {
   };
 }
 
+// Format location for PostGIS
+function formatLocation(lat: number, lng: number): string {
+  return `POINT(${lng} ${lat})`;
+}
+
 // Main handler
 serve(async (req) => {
   const corsHeaders = {
@@ -193,14 +195,21 @@ serve(async (req) => {
         try {
           const details = await fetchPlaceDetails(placeId);
           
+          if (!details.geometry?.location?.lat || !details.geometry?.location?.lng) {
+            console.error(`Invalid location data for place ${placeId}`);
+            return null;
+          }
+
+          const location = formatLocation(
+            details.geometry.location.lat,
+            details.geometry.location.lng
+          );
+
           const workspace: Workspace = {
             name: details.name,
             description: `A workspace located in ${city}`,
             address: details.formatted_address,
-            location: {
-              latitude: details.geometry.location.lat,
-              longitude: details.geometry.location.lng,
-            },
+            location,
             amenities: determineAmenities(details.types),
             attributes: determineAttributes(details.types, details.rating),
             opening_hours: parseOpeningHours(details.opening_hours?.weekday_text),
