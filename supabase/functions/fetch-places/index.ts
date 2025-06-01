@@ -37,7 +37,7 @@ const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 
 // Constants
-const MAX_PLACES_PER_REQUEST = 5; // Limit number of places processed per request
+const MAX_PLACES_PER_REQUEST = 25; // Updated to 25 places per request
 
 // Validate required environment variables
 function validateEnvironment() {
@@ -85,14 +85,18 @@ async function fetchPlaceDetails(placeId: string) {
   return data.result;
 }
 
-async function searchPlaces(city: string, type: string) {
+async function searchPlaces(city: string, type: string, pageToken?: string) {
   if (!GOOGLE_API_KEY) {
     throw new Error('Google Places API key is not configured');
   }
 
-  const response = await fetch(
-    `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(type + ' in ' + city)}&key=${GOOGLE_API_KEY}`
-  );
+  const baseUrl = 'https://maps.googleapis.com/maps/api/place/textsearch/json';
+  const query = `${type} in ${city}`;
+  const url = pageToken
+    ? `${baseUrl}?pagetoken=${pageToken}&key=${GOOGLE_API_KEY}`
+    : `${baseUrl}?query=${encodeURIComponent(query)}&key=${GOOGLE_API_KEY}`;
+
+  const response = await fetch(url);
   
   if (!response.ok) {
     throw new Error(`Google Places API error: ${response.status} ${response.statusText}`);
@@ -104,7 +108,19 @@ async function searchPlaces(city: string, type: string) {
     throw new Error(`Google Places API error: ${data.status} - ${data.error_message}`);
   }
   
-  return data.results.map((result: any) => result.place_id);
+  return {
+    placeIds: data.results.map((result: any) => result.place_id),
+    nextPageToken: data.next_page_token
+  };
+}
+
+async function getExistingPlaceIds() {
+  const { data, error } = await supabase
+    .from('workspaces')
+    .select('google_place_id');
+
+  if (error) throw error;
+  return new Set(data.map((w: any) => w.google_place_id));
 }
 
 function parseOpeningHours(weekdayText?: string[]) {
@@ -185,10 +201,38 @@ serve(async (req) => {
     }
 
     const placeTypes = ['coffee shop', 'library', 'coworking space'];
-    const allPlaceIds = await Promise.all(
-      placeTypes.map(type => searchPlaces(city, type))
-    );
-    const uniquePlaceIds = [...new Set(allPlaceIds.flat())].slice(0, MAX_PLACES_PER_REQUEST);
+    const existingPlaceIds = await getExistingPlaceIds();
+    let allNewPlaceIds: string[] = [];
+    let nextPageTokens: Record<string, string | undefined> = {};
+
+    // Fetch place IDs from all types
+    for (const type of placeTypes) {
+      const result = await searchPlaces(city, type);
+      allNewPlaceIds.push(...result.placeIds);
+      if (result.nextPageToken) {
+        nextPageTokens[type] = result.nextPageToken;
+      }
+    }
+
+    // Filter out existing places
+    let uniquePlaceIds = [...new Set(allNewPlaceIds)]
+      .filter(id => !existingPlaceIds.has(id));
+
+    // If we have less than MAX_PLACES_PER_REQUEST new places, try to get more using next page tokens
+    if (uniquePlaceIds.length < MAX_PLACES_PER_REQUEST) {
+      for (const [type, token] of Object.entries(nextPageTokens)) {
+        if (token) {
+          // Add delay to respect Google Places API pagination token availability
+          await new Promise(resolve => setTimeout(resolve, 2000));
+          const nextResult = await searchPlaces(city, type, token);
+          const newIds = nextResult.placeIds.filter(id => !existingPlaceIds.has(id));
+          uniquePlaceIds.push(...newIds);
+        }
+      }
+    }
+
+    // Take only up to MAX_PLACES_PER_REQUEST places
+    uniquePlaceIds = uniquePlaceIds.slice(0, MAX_PLACES_PER_REQUEST);
     
     const places = await Promise.all(
       uniquePlaceIds.map(async (placeId) => {
@@ -220,17 +264,6 @@ serve(async (req) => {
             is_public: true,
           };
 
-          // Check if workspace already exists
-          const { data: existingWorkspace } = await supabase
-            .from('workspaces')
-            .select('id')
-            .eq('google_place_id', placeId)
-            .single();
-
-          if (existingWorkspace) {
-            return existingWorkspace;
-          }
-
           const { data, error } = await supabase
             .from('workspaces')
             .insert([workspace])
@@ -257,7 +290,8 @@ serve(async (req) => {
         message: `Successfully imported ${successfulPlaces.length} workspaces for ${city}`,
         workspaces: successfulPlaces,
         total: uniquePlaceIds.length,
-        processed: successfulPlaces.length
+        processed: successfulPlaces.length,
+        hasMore: Object.keys(nextPageTokens).length > 0
       }),
       { 
         headers: { 
