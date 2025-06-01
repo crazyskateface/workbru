@@ -10,6 +10,8 @@ const defaultMapOptions = {
   fullscreenControl: false,
   zoomControl: true,
   clickableIcons: false,
+  scrollwheel: true, // Enable scroll wheel zooming
+  gestureHandling: 'greedy', // Allow zooming without Ctrl key
   styles: [
     {
       featureType: 'poi',
@@ -482,3 +484,5 @@ const HomePage: React.FC = () => {
 };
 
 export default HomePage;
+
+export default HomePage
