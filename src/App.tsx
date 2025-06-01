@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuthStore } from './stores/authStore';
+import { useAnalytics } from './hooks/useAnalytics';
 
 // Layout components
 import MainLayout from './components/layouts/MainLayout';
@@ -22,6 +23,7 @@ import { ThemeProvider } from './contexts/ThemeContext';
 
 function App() {
   const { user, isLoading, initializeAuth } = useAuthStore();
+  useAnalytics(); // Add analytics tracking
 
   useEffect(() => {
     initializeAuth();
