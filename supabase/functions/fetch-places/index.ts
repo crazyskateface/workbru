@@ -45,7 +45,9 @@ const COFFEE_CHAINS = [
   'Starbucks',
   'Peet\'s Coffee',
   '7 Brew Coffee',
-  'Dutch Bros Coffee'
+  'Dutch Bros Coffee',
+  'Dunkin\'',
+  'Tim Horton\'s',
 ];
 
 // Other workspace types
