@@ -19,10 +19,10 @@ const Marker: React.FC<MarkerProps> = ({ workspace, isSelected, onClick }) => {
     }
     // Then check if it's a coffee shop
     if (workspace.amenities.coffee) {
-      return "/marker-coffee.png";
+      return "/dont-use.png";
     }
     // Default workspace marker
-    return "/marker-coffee.png";
+    return "/dont-use.png";
   };
 
   return (
