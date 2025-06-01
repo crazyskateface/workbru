@@ -1,78 +1,103 @@
 import { supabase } from './supabase';
 import { Workspace } from '../types';
 
-// Get all workspaces
-export async function getAllWorkspaces() {
-  const { data, error } = await supabase
-    .from('workspaces')
-    .select('*')
-    .order('created_at', { ascending: false });
+const CACHE_KEY = 'workspaces_cache';
+const CACHE_DURATION = 1000 * 60 * 15; // 15 minutes
 
-  if (error) throw error;
-  return data as Workspace[];
+interface CacheEntry {
+  timestamp: number;
+  data: Workspace[];
+  bounds: {
+    north: number;
+    south: number;
+    east: number;
+    west: number;
+  };
 }
 
-// Get a single workspace by ID
-export async function getWorkspaceById(id: string) {
-  const { data, error } = await supabase
-    .from('workspaces')
-    .select('*')
-    .eq('id', id)
-    .single();
+// Check if coordinates are within cached bounds with some padding
+const isWithinBounds = (lat: number, lng: number, bounds: CacheEntry['bounds']) => {
+  const padding = 0.02; // About 2km padding
+  return (
+    lat >= bounds.south - padding &&
+    lat <= bounds.north + padding &&
+    lng >= bounds.west - padding &&
+    lng <= bounds.east + padding
+  );
+};
 
-  if (error) throw error;
-  return data as Workspace;
-}
+// Get cached workspaces if they exist and are still valid
+const getCachedWorkspaces = (lat: number, lng: number): Workspace[] | null => {
+  const cached = localStorage.getItem(CACHE_KEY);
+  if (!cached) return null;
 
-// Create a new workspace
-export async function createWorkspace(workspace: Omit<Workspace, 'id' | 'created_at' | 'updated_at'>) {
-  const { data, error } = await supabase
-    .from('workspaces')
-    .insert([workspace])
-    .select()
-    .single();
+  const entry: CacheEntry = JSON.parse(cached);
+  const now = Date.now();
 
-  if (error) throw error;
-  return data as Workspace;
-}
+  if (now - entry.timestamp > CACHE_DURATION) {
+    localStorage.removeItem(CACHE_KEY);
+    return null;
+  }
 
-// Update a workspace
-export async function updateWorkspace(id: string, updates: Partial<Workspace>) {
-  const { data, error } = await supabase
-    .from('workspaces')
-    .update(updates)
-    .eq('id', id)
-    .select()
-    .single();
+  if (!isWithinBounds(lat, lng, entry.bounds)) {
+    return null;
+  }
 
-  if (error) throw error;
-  return data as Workspace;
-}
+  return entry.data;
+};
 
-// Delete a workspace
-export async function deleteWorkspace(id: string) {
-  const { error } = await supabase
-    .from('workspaces')
-    .delete()
-    .eq('id', id);
+// Save workspaces to cache
+const cacheWorkspaces = (workspaces: Workspace[], bounds: CacheEntry['bounds']) => {
+  const entry: CacheEntry = {
+    timestamp: Date.now(),
+    data: workspaces,
+    bounds
+  };
+  localStorage.setItem(CACHE_KEY, JSON.stringify(entry));
+};
 
-  if (error) throw error;
-}
-
-// Get nearby workspaces within a radius (in kilometers)
 export async function getNearbyWorkspaces(
   latitude: number,
   longitude: number,
-  radiusKm: number = 5
-) {
-  // Using PostGIS to calculate distance and filter
-  const { data, error } = await supabase
-    .rpc('get_nearby_workspaces', {
+  radiusKm: number = 5,
+  forceRefresh: boolean = false
+): Promise<Workspace[]> {
+  // Check cache first unless force refresh is requested
+  if (!forceRefresh) {
+    const cached = getCachedWorkspaces(latitude, longitude);
+    if (cached) return cached;
+  }
+
+  try {
+    const { data, error } = await supabase.rpc('get_nearby_workspaces', {
       lat: latitude,
       lng: longitude,
       radius_km: radiusKm
     });
 
-  if (error) throw error;
-  return data as Workspace[];
+    if (error) throw error;
+
+    // Transform PostGIS point to lat/lng object
+    const workspaces = data.map((workspace: any) => ({
+      ...workspace,
+      location: {
+        latitude: workspace.location.coordinates[1],
+        longitude: workspace.location.coordinates[0]
+      }
+    }));
+
+    // Cache the results with the current viewport bounds
+    const bounds = {
+      north: latitude + (radiusKm / 111), // rough conversion from km to degrees
+      south: latitude - (radiusKm / 111),
+      east: longitude + (radiusKm / (111 * Math.cos(latitude * Math.PI / 180))),
+      west: longitude - (radiusKm / (111 * Math.cos(latitude * Math.PI / 180)))
+    };
+    cacheWorkspaces(workspaces, bounds);
+
+    return workspaces;
+  } catch (error) {
+    console.error('Error fetching nearby workspaces:', error);
+    throw error;
+  }
 }
