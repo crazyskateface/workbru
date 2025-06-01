@@ -99,38 +99,22 @@ const HomePage: React.FC = () => {
     
     const workspace = workspaces.find(w => w.id === workspaceId);
     if (workspace && mapInstanceRef.current && mapsRef.current) {
-      // Get the map's current bounds and projection
-      const bounds = mapInstanceRef.current.getBounds();
-      const projection = mapInstanceRef.current.getProjection();
+      const map = mapInstanceRef.current;
+      const maps = mapsRef.current;
       
-      // Get the marker's position
-      const markerLatLng = new mapsRef.current.LatLng(
-        workspace.location.latitude,
-        workspace.location.longitude
-      );
+      // Get the map's current bounds and size
+      const bounds = map.getBounds();
+      const mapHeight = map.getDiv().offsetHeight;
       
-      // Convert marker position to pixel coordinates
-      const markerPoint = projection.fromLatLngToPoint(markerLatLng);
+      // Calculate the target position (30% from bottom of viewport)
+      const latOffset = (bounds.getNorthEast().lat() - bounds.getSouthWest().lat()) * 0.2;
+      const targetLat = workspace.location.latitude + latOffset;
       
-      // Get the bounds in pixels
-      const ne = projection.fromLatLngToPoint(bounds.getNorthEast());
-      const sw = projection.fromLatLngToPoint(bounds.getSouthWest());
+      // Create a new position with adjusted latitude
+      const newPosition = new maps.LatLng(targetLat, workspace.location.longitude);
       
-      // Calculate the map height in pixels
-      const mapHeight = Math.abs(ne.y - sw.y);
-      
-      // Calculate the target point (40% from bottom of viewport)
-      const targetY = sw.y + (mapHeight * 0.6); // 60% from top = 40% from bottom
-      
-      // Convert back to LatLng
-      const targetPoint = new mapsRef.current.Point(markerPoint.x, targetY);
-      const targetLatLng = projection.fromPointToLatLng(targetPoint);
-      
-      // Pan the map
-      mapInstanceRef.current.panTo(new mapsRef.current.LatLng(
-        targetLatLng.lat(),
-        workspace.location.longitude
-      ));
+      // Smoothly pan to the new position
+      map.panTo(newPosition);
     }
     
     trackEvent('select_workspace', { workspace_id: workspaceId });
@@ -370,3 +354,5 @@ const HomePage: React.FC = () => {
 };
 
 export default HomePage;
+
+export default HomePage
