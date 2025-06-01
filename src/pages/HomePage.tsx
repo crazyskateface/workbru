@@ -30,6 +30,33 @@ interface MarkerProps {
   onClick?: () => void;
 }
 
+// Error Boundary Component
+class MapErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean }> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    console.error('Map error:', error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="absolute inset-0 flex items-center justify-center bg-gray-100 dark:bg-dark-input">
+          <p className="text-red-600 dark:text-red-400">Map temporarily unavailable</p>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 const Marker: React.FC<MarkerProps> = ({ workspace, isSelected, isCoffeeShop, onClick }) => (
   <div 
     className={`absolute -translate-x-1/2 -translate-y-full cursor-pointer transition-all duration-300 ${isSelected ? 'z-10' : ''}`}
@@ -260,6 +287,18 @@ const HomePage: React.FC = () => {
     mapRef.current.setZoom(14);
   };
 
+  const isValidLocation = (location: any): location is { latitude: number; longitude: number } => {
+    return (
+      location &&
+      typeof location.latitude === 'number' &&
+      typeof location.longitude === 'number' &&
+      !isNaN(location.latitude) &&
+      !isNaN(location.longitude) &&
+      Math.abs(location.latitude) <= 90 &&
+      Math.abs(location.longitude) <= 180
+    );
+  };
+
   const renderMap = () => {
     if (!import.meta.env.VITE_GOOGLE_MAPS_API_KEY) {
       return (
@@ -270,39 +309,42 @@ const HomePage: React.FC = () => {
     }
 
     return (
-      <GoogleMapReact
-        key={view} // Add key prop to force remount when view changes
-        bootstrapURLKeys={{ 
-          key: import.meta.env.VITE_GOOGLE_MAPS_API_KEY,
-          libraries: ['places']
-        }}
-        center={mapPosition.center}
-        zoom={mapPosition.zoom}
-        onError={handleGoogleMapError}
-        options={defaultMapOptions}
-        yesIWantToUseGoogleMapApiInternals
-        onGoogleApiLoaded={handleApiLoaded}
-      >
-        {mapReady && filteredWorkspaces
-          .filter(workspace => 
-            workspace.location && 
-            typeof workspace.location.latitude === 'number' && 
-            typeof workspace.location.longitude === 'number' && 
-            !isNaN(workspace.location.latitude) && 
-            !isNaN(workspace.location.longitude)
-          )
-          .map((workspace) => (
-            <Marker
-              key={workspace.id}
-              lat={workspace.location.latitude}
-              lng={workspace.location.longitude}
-              workspace={workspace}
-              isSelected={workspace.id === selectedWorkspace}
-              isCoffeeShop={workspace.amenities.coffee}
-              onClick={() => handleMarkerClick(workspace.id!)}
-            />
-          ))}
-      </GoogleMapReact>
+      <MapErrorBoundary>
+        <div style={{ height: '100%', width: '100%' }}>
+          <GoogleMapReact
+            key={view} // Add key prop to force remount when view changes
+            bootstrapURLKeys={{ 
+              key: import.meta.env.VITE_GOOGLE_MAPS_API_KEY,
+              libraries: ['places']
+            }}
+            center={mapPosition.center}
+            zoom={mapPosition.zoom}
+            onError={handleGoogleMapError}
+            options={defaultMapOptions}
+            yesIWantToUseGoogleMapApiInternals
+            onGoogleApiLoaded={handleApiLoaded}
+          >
+            {mapReady && filteredWorkspaces.map((workspace) => {
+              // Validate location before rendering marker
+              if (!workspace.location || !isValidLocation(workspace.location)) {
+                return null;
+              }
+
+              return (
+                <Marker
+                  key={workspace.id}
+                  lat={workspace.location.latitude}
+                  lng={workspace.location.longitude}
+                  workspace={workspace}
+                  isSelected={workspace.id === selectedWorkspace}
+                  isCoffeeShop={workspace.amenities.coffee}
+                  onClick={() => handleMarkerClick(workspace.id!)}
+                />
+              );
+            })}
+          </GoogleMapReact>
+        </div>
+      </MapErrorBoundary>
     );
   };
 
