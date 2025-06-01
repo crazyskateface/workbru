@@ -54,10 +54,18 @@ function ImportWorkspaces() {
       setError(null);
       setSuccess(null);
 
+      // Get the current session for authentication
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      
+      if (sessionError || !session) {
+        throw new Error('You must be logged in to import places');
+      }
+
       const response = await fetch('/api/fetch-places', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
         },
         body: JSON.stringify({ city: city.trim() })
       });

@@ -196,17 +196,25 @@ const HomePage: React.FC = () => {
         ]
       }}
     >
-      {workspaces.map((workspace) => (
-        <Marker
-          key={workspace.id}
-          lat={workspace.location.latitude}
-          lng={workspace.location.longitude}
-          workspace={workspace}
-          isSelected={workspace.id === selectedWorkspace}
-          onClick={() => handleMarkerClick(workspace.id!)}
-          onClose={() => setSelectedWorkspace(null)}
-        />
-      ))}
+      {workspaces
+        .filter(workspace => 
+          workspace.location && 
+          typeof workspace.location.latitude === 'number' && 
+          typeof workspace.location.longitude === 'number' &&
+          !isNaN(workspace.location.latitude) && 
+          !isNaN(workspace.location.longitude)
+        )
+        .map((workspace) => (
+          <Marker
+            key={workspace.id}
+            lat={workspace.location.latitude}
+            lng={workspace.location.longitude}
+            workspace={workspace}
+            isSelected={workspace.id === selectedWorkspace}
+            onClick={() => handleMarkerClick(workspace.id!)}
+            onClose={() => setSelectedWorkspace(null)}
+          />
+        ))}
     </GoogleMapReact>
   );
 
@@ -366,5 +374,4 @@ const HomePage: React.FC = () => {
   );
 };
 
-// hey, look, the "export default HomePage;" is right here under this line... DON'T ADD ANOTHER "export default HomePage" ...how many times do i have to fix it for you. STOP THAT. JESUS. ONLY NEED ONE "export default HomePage;" in the file. 
 export default HomePage;
