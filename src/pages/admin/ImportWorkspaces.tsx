@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { MapPin, AlertCircle, Check, X, Loader2 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
-import MigrationButton from '../../components/ui/MigrationButton';
 
 interface ImportSession {
   id: string;
@@ -94,14 +93,11 @@ function ImportWorkspaces() {
 
   return (
     <div className="p-6">
-      <div className="mb-6 flex justify-between items-start">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Import Workspaces</h1>
-          <p className="mt-1 text-gray-600 dark:text-gray-400">
-            Import workspaces from Google Places API for a specific city
-          </p>
-        </div>
-        <MigrationButton />
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Import Workspaces</h1>
+        <p className="mt-1 text-gray-600 dark:text-gray-400">
+          Import workspaces from Google Places API for a specific city
+        </p>
       </div>
 
       <div className="bg-white dark:bg-dark-card rounded-lg shadow-md p-6 mb-8">
