@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Link } from 'react-router-dom';
-import { Wifi, Coffee, Power, Users, Clock, Search, List, MapIcon, Filter, Star, MapPin, ChevronRight, Crosshair, AlertCircle } from 'lucide-react';
+import { Wifi, Coffee, Power, Users, Clock, Search, List, MapIcon, Filter, Star, MapPin, ChevronRight, Crosshair, AlertCircle, Target } from 'lucide-react';
 import GoogleMapReact from 'google-map-react';
 import { getNearbyWorkspaces } from '../lib/workspaces';
 import { Workspace, FilterOptions, MapPosition } from '../types';
@@ -10,15 +10,16 @@ interface MarkerProps {
   lat: number;
   lng: number;
   workspace: Workspace;
+  isSelected: boolean;
   onClick: () => void;
 }
 
-const Marker: React.FC<MarkerProps> = ({ workspace, onClick }) => (
+const Marker: React.FC<MarkerProps> = ({ workspace, isSelected, onClick }) => (
   <div 
-    className="relative cursor-pointer transform -translate-x-1/2 -translate-y-full"
+    className={`relative cursor-pointer transform -translate-x-1/2 -translate-y-full transition-transform duration-200 ${isSelected ? 'z-10 scale-110' : ''}`}
     onClick={onClick}
   >
-    <div className="p-2 bg-white rounded-lg shadow-lg flex items-center gap-2 hover:bg-gray-50">
+    <div className={`p-2 bg-white rounded-lg shadow-lg flex items-center gap-2 hover:bg-gray-50 ${isSelected ? 'ring-2 ring-primary-500' : ''}`}>
       <Coffee className="h-4 w-4 text-primary-600" />
       <span className="text-sm font-medium">{workspace.name}</span>
     </div>
@@ -26,16 +27,36 @@ const Marker: React.FC<MarkerProps> = ({ workspace, onClick }) => (
   </div>
 );
 
+const SearchButton: React.FC<{ onClick: () => void, loading: boolean }> = ({ onClick, loading }) => (
+  <button
+    onClick={onClick}
+    disabled={loading}
+    className="absolute top-4 left-1/2 transform -translate-x-1/2 px-4 py-2 bg-primary-600 text-white rounded-full shadow-lg hover:bg-primary-700 transition-colors duration-200 flex items-center gap-2 z-10"
+  >
+    {loading ? (
+      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+    ) : (
+      <Target className="h-4 w-4" />
+    )}
+    Search this area
+  </button>
+);
+
 const HomePage: React.FC = () => {
   const [view, setView] = useState<'list' | 'map'>('map');
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [loading, setLoading] = useState(false);
   const [mapError, setMapError] = useState<string | null>(null);
+  const [selectedWorkspace, setSelectedWorkspace] = useState<string | null>(null);
   const [userLocation, setUserLocation] = useState<MapPosition | null>(null);
   const [mapCenter, setMapCenter] = useState<MapPosition>({
-    lat: 40.7128,
-    lng: -74.0060
+    center: {
+      lat: 40.7128,
+      lng: -74.0060
+    },
+    zoom: 13
   });
+  const [showSearchButton, setShowSearchButton] = useState(false);
   const [filters, setFilters] = useState<FilterOptions>({
     wifi: false,
     coffee: false,
@@ -49,14 +70,15 @@ const HomePage: React.FC = () => {
   const { trackEvent } = useAnalytics();
 
   const loadWorkspaces = useCallback(async (lat: number, lng: number, force: boolean = false) => {
-    if (loadingRef.current) return;
+    if (loadingRef.current && !force) return;
     
     try {
       loadingRef.current = true;
       setLoading(true);
       setMapError(null);
+      setShowSearchButton(false);
       
-      const spaces = await getNearbyWorkspaces(lat, lng, 5, force);
+      const spaces = await getNearbyWorkspaces(lat, lng, 160, force); // 160km ≈ 100 miles
       setWorkspaces(spaces);
       
       if (spaces.length === 0) {
@@ -78,13 +100,27 @@ const HomePage: React.FC = () => {
   }, [trackEvent]);
 
   const handleMapChange = useCallback(({ center, bounds, zoom }: any) => {
-    setMapCenter(center);
-    loadWorkspaces(center.lat, center.lng);
-  }, [loadWorkspaces]);
+    setMapCenter({ center, zoom });
+    setShowSearchButton(true);
+  }, []);
+
+  const handleSearchArea = useCallback(() => {
+    if (mapCenter.center) {
+      loadWorkspaces(mapCenter.center.lat, mapCenter.center.lng, true);
+    }
+  }, [mapCenter, loadWorkspaces]);
+
+  const handleMarkerClick = useCallback((workspaceId: string) => {
+    setSelectedWorkspace(workspaceId);
+    trackEvent('select_workspace', { workspace_id: workspaceId });
+  }, [trackEvent]);
 
   const handleGoToUserLocation = useCallback(() => {
     if (userLocation) {
-      setMapCenter(userLocation);
+      setMapCenter({
+        center: { lat: userLocation.lat, lng: userLocation.lng },
+        zoom: 13
+      });
       loadWorkspaces(userLocation.lat, userLocation.lng, true);
     }
   }, [userLocation, loadWorkspaces]);
@@ -98,37 +134,51 @@ const HomePage: React.FC = () => {
             lng: position.coords.longitude
           };
           setUserLocation(location);
-          setMapCenter(location);
+          setMapCenter({
+            center: location,
+            zoom: 13
+          });
           loadWorkspaces(location.lat, location.lng);
         },
         (error) => {
           console.error('Error getting location:', error);
-          loadWorkspaces(mapCenter.lat, mapCenter.lng);
+          loadWorkspaces(mapCenter.center.lat, mapCenter.center.lng);
         }
       );
     } else {
-      loadWorkspaces(mapCenter.lat, mapCenter.lng);
+      loadWorkspaces(mapCenter.center.lat, mapCenter.center.lng);
     }
-  }, [loadWorkspaces, mapCenter.lat, mapCenter.lng]);
+  }, [loadWorkspaces]);
 
   const renderMap = () => (
     <GoogleMapReact
       bootstrapURLKeys={{ key: import.meta.env.VITE_GOOGLE_MAPS_API_KEY }}
-      center={mapCenter}
-      defaultZoom={14}
+      center={mapCenter.center}
+      zoom={mapCenter.zoom}
       onChange={handleMapChange}
       yesIWantToUseGoogleMapApiInternals
       onGoogleApiLoaded={({ map }) => { mapRef.current = map; }}
+      options={{
+        fullscreenControl: false,
+        zoomControl: true,
+        clickableIcons: false,
+        styles: [
+          {
+            featureType: 'poi',
+            elementType: 'labels',
+            stylers: [{ visibility: 'off' }]
+          }
+        ]
+      }}
     >
       {workspaces.map((workspace) => (
         <Marker
           key={workspace.id}
-          lat={workspace.location.coordinates[1]}
-          lng={workspace.location.coordinates[0]}
+          lat={workspace.location.latitude}
+          lng={workspace.location.longitude}
           workspace={workspace}
-          onClick={() => {
-            trackEvent('select_workspace', { workspace_id: workspace.id });
-          }}
+          isSelected={workspace.id === selectedWorkspace}
+          onClick={() => handleMarkerClick(workspace.id!)}
         />
       ))}
     </GoogleMapReact>
@@ -136,7 +186,7 @@ const HomePage: React.FC = () => {
 
   return (
     <div className="h-screen flex flex-col relative">
-      <div className="bg-white dark:bg-dark-card shadow-sm">
+      <div className="bg-white dark:bg-dark-card shadow-sm z-10">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center gap-4">
             <div className="flex-1 relative">
@@ -144,7 +194,7 @@ const HomePage: React.FC = () => {
               <input
                 type="text"
                 placeholder="Search workspaces..."
-                className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-200 dark:border-dark-border focus:outline-none focus:ring-2 focus:ring-primary-500 dark:bg-dark-input"
+                className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-200 dark:border-dark-border focus:outline-none focus:ring-2 focus:ring-primary-500 dark:bg-dark-input dark:text-white"
               />
             </div>
             <div className="flex items-center gap-2">
@@ -173,30 +223,17 @@ const HomePage: React.FC = () => {
 
       {view === 'map' ? (
         <div className="flex-1 relative">
+          <div className="absolute inset-0">
+            {renderMap()}
+            {showSearchButton && !loading && (
+              <SearchButton onClick={handleSearchArea} loading={loading} />
+            )}
+          </div>
           {loading && (
             <div className="absolute inset-0 bg-black/20 backdrop-blur-sm z-10 flex items-center justify-center">
               <div className="bg-white dark:bg-dark-card rounded-lg p-4 shadow-lg">
                 <div className="w-8 h-8 border-4 border-primary-200 border-t-primary-600 rounded-full animate-spin"></div>
               </div>
-            </div>
-          )}
-          {mapError ? (
-            <div className="absolute inset-0 flex flex-col items-center justify-center bg-gray-100 dark:bg-dark-input">
-              <AlertCircle className="h-12 w-12 text-primary-600 dark:text-primary-400 mb-4" />
-              <p className="text-gray-600 dark:text-gray-400 text-center max-w-md px-4">{mapError}</p>
-              {userLocation && (
-                <button
-                  onClick={handleGoToUserLocation}
-                  className="mt-4 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors duration-200 flex items-center gap-2"
-                >
-                  <Crosshair className="h-5 w-5" />
-                  Try near my location
-                </button>
-              )}
-            </div>
-          ) : (
-            <div className="absolute inset-0">
-              {renderMap()}
             </div>
           )}
         </div>
