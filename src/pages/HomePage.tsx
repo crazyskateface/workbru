@@ -64,9 +64,11 @@ const HomePage: React.FC = () => {
     seating: false,
     meetingRooms: false
   });
+  const [initialLocationSet, setInitialLocationSet] = useState(false);
   
   const loadingRef = useRef(false);
-  const mapRef = useRef<any>(null);
+  const mapInstanceRef = useRef<any>(null);
+  const mapsRef = useRef<any>(null);
   const { trackEvent } = useAnalytics();
 
   const loadWorkspaces = useCallback(async (lat: number, lng: number, force: boolean = false) => {
@@ -78,7 +80,7 @@ const HomePage: React.FC = () => {
       setMapError(null);
       setShowSearchButton(false);
       
-      const spaces = await getNearbyWorkspaces(lat, lng, 160, force); // 160km ≈ 100 miles
+      const spaces = await getNearbyWorkspaces(lat, lng, 160, force);
       setWorkspaces(spaces);
       
       if (spaces.length === 0) {
@@ -100,9 +102,11 @@ const HomePage: React.FC = () => {
   }, [trackEvent]);
 
   const handleMapChange = useCallback(({ center, bounds, zoom }: any) => {
-    setMapCenter({ center, zoom });
-    setShowSearchButton(true);
-  }, []);
+    if (initialLocationSet) {
+      setMapCenter({ center, zoom });
+      setShowSearchButton(true);
+    }
+  }, [initialLocationSet]);
 
   const handleSearchArea = useCallback(() => {
     if (mapCenter.center) {
@@ -112,8 +116,20 @@ const HomePage: React.FC = () => {
 
   const handleMarkerClick = useCallback((workspaceId: string) => {
     setSelectedWorkspace(workspaceId);
+    
+    const workspace = workspaces.find(w => w.id === workspaceId);
+    if (workspace && mapInstanceRef.current && mapsRef.current) {
+      const newCenter = {
+        lat: workspace.location.latitude,
+        lng: workspace.location.longitude
+      };
+      
+      mapInstanceRef.current.panTo(new mapsRef.current.LatLng(newCenter.lat, newCenter.lng));
+      mapInstanceRef.current.setZoom(16);
+    }
+    
     trackEvent('select_workspace', { workspace_id: workspaceId });
-  }, [trackEvent]);
+  }, [workspaces, trackEvent]);
 
   const handleGoToUserLocation = useCallback(() => {
     if (userLocation) {
@@ -126,7 +142,7 @@ const HomePage: React.FC = () => {
   }, [userLocation, loadWorkspaces]);
 
   useEffect(() => {
-    if (navigator.geolocation) {
+    if (!initialLocationSet && navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (position) => {
           const location = {
@@ -139,16 +155,24 @@ const HomePage: React.FC = () => {
             zoom: 13
           });
           loadWorkspaces(location.lat, location.lng);
+          setInitialLocationSet(true);
         },
         (error) => {
           console.error('Error getting location:', error);
           loadWorkspaces(mapCenter.center.lat, mapCenter.center.lng);
+          setInitialLocationSet(true);
         }
       );
-    } else {
+    } else if (!initialLocationSet) {
       loadWorkspaces(mapCenter.center.lat, mapCenter.center.lng);
+      setInitialLocationSet(true);
     }
-  }, [loadWorkspaces]);
+  }, [loadWorkspaces, initialLocationSet, mapCenter.center.lat, mapCenter.center.lng]);
+
+  const handleApiLoaded = ({ map, maps }: { map: any; maps: any }) => {
+    mapInstanceRef.current = map;
+    mapsRef.current = maps;
+  };
 
   const renderMap = () => (
     <GoogleMapReact
@@ -157,7 +181,7 @@ const HomePage: React.FC = () => {
       zoom={mapCenter.zoom}
       onChange={handleMapChange}
       yesIWantToUseGoogleMapApiInternals
-      onGoogleApiLoaded={({ map }) => { mapRef.current = map; }}
+      onGoogleApiLoaded={handleApiLoaded}
       options={{
         fullscreenControl: false,
         zoomControl: true,
