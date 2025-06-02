@@ -12,33 +12,34 @@ const AdminUsers: React.FC = () => {
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   
+  // Only fetch users once when component mounts
   useEffect(() => {
-    loadUsers();
-  }, []);
+    const fetchUsers = async () => {
+      try {
+        setLoading(true);
+        setError(null);
 
-  const loadUsers = async () => {
-    try {
-      setLoading(true);
-      setError(null);
+        const { data: profiles, error: profilesError } = await supabase
+          .from('profiles')
+          .select('*')
+          .order('created_at', { ascending: false });
 
-      const { data: profiles, error: profilesError } = await supabase
-        .from('profiles')
-        .select('*')
-        .order('created_at', { ascending: false });
+        if (profilesError) {
+          throw profilesError;
+        }
 
-      if (profilesError) {
-        throw profilesError;
+        setUsers(profiles || []);
+      } catch (err: any) {
+        console.error('Error loading users:', err);
+        setError(err.message || 'Failed to load users');
+      } finally {
+        setLoading(false);
       }
+    };
 
-      setUsers(profiles || []);
-    } catch (err: any) {
-      console.error('Error loading users:', err);
-      setError(err.message || 'Failed to load users');
-    } finally {
-      setLoading(false);
-    }
-  };
-  
+    fetchUsers();
+  }, []); // Empty dependency array ensures this only runs once
+
   const filteredUsers = users.filter((user) => {
     if (!searchQuery) return true;
     
@@ -73,7 +74,6 @@ const AdminUsers: React.FC = () => {
     }
   };
 
-  // Format date to a more readable format
   const formatDate = (dateString: string | undefined) => {
     if (!dateString) return 'N/A';
     
@@ -95,7 +95,7 @@ const AdminUsers: React.FC = () => {
           <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-2">Error Loading Users</h2>
           <p className="text-gray-600 dark:text-gray-400 mb-4">{error}</p>
           <button
-            onClick={loadUsers}
+            onClick={() => window.location.reload()}
             className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors duration-200"
           >
             Try Again
@@ -246,7 +246,7 @@ const AdminUsers: React.FC = () => {
                       <div className="flex items-center">
                         <div className="h-10 w-10 flex-shrink-0">
                           {user.avatar ? (
-                            <img className="h-10 w-10 rounded-full object-cover\" src={user.avatar} alt={`${user.firstName} ${user.lastName}`} />
+                            <img className="h-10 w-10 rounded-full object-cover" src={user.avatar} alt={`${user.firstName} ${user.lastName}`} />
                           ) : (
                             <div className="h-10 w-10 rounded-full bg-primary-100 dark:bg-primary-900/30 flex items-center justify-center text-primary-600 dark:text-primary-400 font-semibold">
                               {user.firstName?.charAt(0) || ''}
