@@ -7,7 +7,7 @@ interface Workspace {
   name: string;
   description: string;
   address: string;
-  location: string; // Changed to string for PostGIS POINT format
+  location: string;
   amenities: {
     wifi: boolean;
     coffee: boolean;
@@ -31,14 +31,21 @@ interface Workspace {
   is_public?: boolean;
 }
 
+// API pricing constants (in USD)
+const API_PRICING = {
+  FIND_PLACE: 0.017,      // $0.017 per request
+  PLACE_DETAILS: 0.017,   // $0.017 per request
+  PLACE_PHOTO: 0.007      // $0.007 per photo
+};
+
 // Environment variables with validation
 const GOOGLE_API_KEY = Deno.env.get('GOOGLE_PLACES_API_KEY');
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 
 // Constants
-const MAX_PLACES_PER_REQUEST = 10; // Reduced from 25 to 10
-const RATE_LIMIT_DELAY = 200; // ms between API calls
+const MAX_PLACES_PER_REQUEST = 10;
+const RATE_LIMIT_DELAY = 200;
 
 // Workspace types with priorities
 const WORKSPACE_TYPES = {
@@ -233,6 +240,20 @@ function parseOpeningHours(weekdayText?: string[]) {
   });
 }
 
+// Calculate estimated API costs
+function calculateCosts(searchCount: number, detailsCount: number, photoCount: number) {
+  const searchCost = searchCount * API_PRICING.FIND_PLACE;
+  const detailsCost = detailsCount * API_PRICING.PLACE_DETAILS;
+  const photoCost = photoCount * API_PRICING.PLACE_PHOTO;
+  
+  return {
+    searchCost,
+    detailsCost,
+    photoCost,
+    total: searchCost + detailsCost + photoCost
+  };
+}
+
 serve(async (req) => {
   const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
@@ -259,11 +280,13 @@ serve(async (req) => {
 
     const existingPlaceIds = await getExistingPlaceIds();
     let allPlaces: any[] = [];
+    let searchRequestCount = 0;
 
     // First search for primary types
     for (const type of WORKSPACE_TYPES.PRIMARY) {
       const places = await searchPlaces(city, type);
       allPlaces.push(...places);
+      searchRequestCount++;
       await new Promise(resolve => setTimeout(resolve, RATE_LIMIT_DELAY));
     }
 
@@ -271,6 +294,7 @@ serve(async (req) => {
     for (const type of WORKSPACE_TYPES.SECONDARY) {
       const places = await searchPlaces(city, type);
       allPlaces.push(...places);
+      searchRequestCount++;
       await new Promise(resolve => setTimeout(resolve, RATE_LIMIT_DELAY));
     }
 
@@ -282,6 +306,8 @@ serve(async (req) => {
     .filter(place => !shouldExcludePlace(place))
     .slice(0, MAX_PLACES_PER_REQUEST);
 
+    let totalPhotoCount = 0;
+
     // Process places and get details
     const workspaces = await Promise.all(
       uniquePlaces.map(async (place, index) => {
@@ -292,6 +318,11 @@ serve(async (req) => {
           
           if (!details.geometry?.location) {
             return null;
+          }
+
+          // Count photos for cost calculation
+          if (details.photos) {
+            totalPhotoCount += details.photos.length;
           }
 
           const location = `POINT(${details.geometry.location.lng} ${details.geometry.location.lat})`;
@@ -319,6 +350,13 @@ serve(async (req) => {
       })
     );
 
+    // Calculate costs
+    const costs = calculateCosts(
+      searchRequestCount,
+      uniquePlaces.length,
+      totalPhotoCount
+    );
+
     // Filter out null results and insert into database
     const validWorkspaces = workspaces.filter(Boolean);
     
@@ -337,7 +375,8 @@ serve(async (req) => {
         workspaces: insertedWorkspaces,
         total: uniquePlaces.length,
         processed: insertedWorkspaces.length,
-        maxPlacesPerRequest: MAX_PLACES_PER_REQUEST
+        maxPlacesPerRequest: MAX_PLACES_PER_REQUEST,
+        costs
       }),
       { headers: { 'Content-Type': 'application/json', ...corsHeaders } }
     );
