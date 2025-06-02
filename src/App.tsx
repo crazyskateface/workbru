@@ -34,7 +34,7 @@ function App() {
 
   // Save current route to localStorage when it changes
   useEffect(() => {
-    if (user) {
+    if (user && location.pathname !== '/login' && location.pathname !== '/register') {
       localStorage.setItem('lastRoute', location.pathname + location.search);
     }
   }, [location, user]);
@@ -60,6 +60,8 @@ function App() {
     }
     
     if (!user) {
+      // Save attempted route before redirecting to login
+      localStorage.setItem('attemptedRoute', location.pathname + location.search);
       return <Navigate to="/login" replace />;
     }
     
@@ -75,13 +77,13 @@ function App() {
       <Routes>
         {/* Public routes */}
         <Route path="/" element={
-          user ? <Navigate to="/app" replace /> : <LandingPage />
+          user ? <Navigate to={localStorage.getItem('lastRoute') || '/app'} replace /> : <LandingPage />
         } />
         <Route path="/login" element={
-          user ? <Navigate to="/app" replace /> : <LoginPage />
+          user ? <Navigate to={localStorage.getItem('lastRoute') || '/app'} replace /> : <LoginPage />
         } />
         <Route path="/register" element={
-          user ? <Navigate to="/app" replace /> : <RegisterPage />
+          user ? <Navigate to={localStorage.getItem('lastRoute') || '/app'} replace /> : <RegisterPage />
         } />
         
         {/* User routes */}
