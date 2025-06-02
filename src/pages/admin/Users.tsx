@@ -17,6 +17,7 @@ const AdminUsers: React.FC = () => {
     role: 'user' as 'user' | 'admin'
   });
   const [error, setError] = useState<string | null>(null);
+  const [editLoading, setEditLoading] = useState(false);
   
   useEffect(() => {
     loadUsers();
@@ -63,7 +64,11 @@ const AdminUsers: React.FC = () => {
     if (!selectedUser) return;
 
     try {
-      const { error } = await supabase
+      setEditLoading(true);
+      setError(null);
+
+      // Update the profile in the database
+      const { error: updateError } = await supabase
         .from('profiles')
         .update({
           first_name: editForm.firstName,
@@ -73,8 +78,9 @@ const AdminUsers: React.FC = () => {
         })
         .eq('id', selectedUser.id);
 
-      if (error) throw error;
+      if (updateError) throw updateError;
 
+      // Update the local state
       setUsers(users.map(user => 
         user.id === selectedUser.id 
           ? { 
@@ -91,6 +97,8 @@ const AdminUsers: React.FC = () => {
     } catch (error) {
       console.error('Error updating user:', error);
       setError('Failed to update user');
+    } finally {
+      setEditLoading(false);
     }
   };
 
@@ -200,7 +208,6 @@ const AdminUsers: React.FC = () => {
                   <option>Name (Z-A)</option>
                   <option>Newest First</option>
                   <option>Oldest First</option>
-                  <option>Last Login</option>
                 </select>
               </div>
             </div>
@@ -378,9 +385,17 @@ const AdminUsers: React.FC = () => {
               </button>
               <button
                 onClick={handleEditSubmit}
-                className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
+                disabled={editLoading}
+                className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 flex items-center"
               >
-                Save Changes
+                {editLoading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  'Save Changes'
+                )}
               </button>
             </div>
           </div>
