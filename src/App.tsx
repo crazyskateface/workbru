@@ -32,24 +32,19 @@ function App() {
   useEffect(() => {
     const cleanup = setupAuthListener();
     return () => cleanup();
-  }, []);
+  }, [setupAuthListener]);
 
   // Save current route to localStorage when it changes
   useEffect(() => {
     if (user && location.pathname !== '/login' && location.pathname !== '/register') {
       localStorage.setItem('lastRoute', location.pathname + location.search);
     }
-    if (user) {
-      console.log('[App] user changed', user);
-    }
   }, [location, user]);
 
   // Handle navigation after auth state changes
   useEffect(() => {
     if (!isLoading) {
-      console.log('[App] : ', user)
       if (user) {
-        console.log('[App] user is here in useEffect', user);
         const attemptedRoute = localStorage.getItem('attemptedRoute');
         const lastRoute = localStorage.getItem('lastRoute');
         
@@ -77,11 +72,12 @@ function App() {
     }
     
     if (!user) {
+      localStorage.setItem('attemptedRoute', location.pathname + location.search);
       return <Navigate to="/login" replace />;
     }
     
     if (requireAdmin && user.role !== 'admin') {
-      return <Navigate to="/app\" replace />;
+      return <Navigate to="/app" replace />;
     }
     
     return <>{children}</>;
@@ -92,13 +88,13 @@ function App() {
       <Routes>
         {/* Public routes */}
         <Route path="/" element={
-          user ? <Navigate to="/app\" replace /> : <LandingPage />
+          user ? <Navigate to={localStorage.getItem('lastRoute') || '/app'} replace /> : <LandingPage />
         } />
         <Route path="/login" element={
-          user ? <Navigate to="/app\" replace /> : <LoginPage />
+          user ? <Navigate to={localStorage.getItem('lastRoute') || '/app'} replace /> : <LoginPage />
         } />
         <Route path="/register" element={
-          user ? <Navigate to="/app\" replace /> : <RegisterPage />
+          user ? <Navigate to={localStorage.getItem('lastRoute') || '/app'} replace /> : <RegisterPage />
         } />
         
         {/* User routes */}
