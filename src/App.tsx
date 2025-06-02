@@ -34,7 +34,7 @@ function App() {
 
   // Save current route to localStorage when it changes
   useEffect(() => {
-    if (user && location.pathname !== '/login' && location.pathname !== '/register') {
+    if (user && location.pathname !== '/login' && location.pathname !== '/register' && !location.pathname.startsWith('/admin')) {
       localStorage.setItem('lastRoute', location.pathname + location.search);
     }
   }, [location, user]);
@@ -66,7 +66,7 @@ function App() {
     }
     
     if (requireAdmin && user.role !== 'admin') {
-      return <Navigate to="/app\" replace />;
+      return <Navigate to="/app" replace />;
     }
     
     return <>{children}</>;

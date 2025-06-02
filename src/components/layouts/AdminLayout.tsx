@@ -19,8 +19,9 @@ const AdminLayout: React.FC = () => {
   }, [location.pathname]);
 
   const handleSignOut = async () => {
+    localStorage.removeItem('lastRoute'); // Clear lastRoute on sign out
     await signOut();
-    window.location.href = '/login';
+    window.location.href = '/';
   };
 
   return (
@@ -28,7 +29,11 @@ const AdminLayout: React.FC = () => {
       {/* Sidebar */}
       <aside className="w-64 bg-white dark:bg-dark-card shadow-md flex flex-col h-screen sticky top-0">
         <div className="p-6 flex items-center justify-between">
-          <Link to="/" className="text-2xl font-bold text-primary-700 dark:text-primary-400 hover:opacity-80 transition-opacity duration-200">
+          <Link 
+            to="/" 
+            onClick={() => localStorage.removeItem('lastRoute')} 
+            className="text-2xl font-bold text-primary-700 dark:text-primary-400 hover:opacity-80 transition-opacity duration-200"
+          >
             Workbru <span className="text-sm font-normal">Admin</span>
           </Link>
         </div>
