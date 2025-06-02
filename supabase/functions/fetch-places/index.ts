@@ -1,22 +1,13 @@
+// Import from Deno's standard library
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.38.4";
 
 // Type definitions
-interface ImportSession {
-  id: string;
-  city: string;
-  processed_count: number;
-  completed_types: string[];
-  next_page_tokens: Record<string, string | undefined>;
-  last_processed_at: string;
-  status: 'in_progress' | 'completed' | 'failed';
-}
-
 interface Workspace {
   name: string;
   description: string;
   address: string;
-  location: string;
+  location: string; // Changed to string for PostGIS POINT format
   amenities: {
     wifi: boolean;
     coffee: boolean;
@@ -46,22 +37,57 @@ const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 
 // Constants
-const MAX_PLACES_PER_REQUEST = 10; // Reduced for cost optimization
-const BATCH_SIZE = 3; // Process places in smaller batches
+const MAX_PLACES_PER_REQUEST = 10; // Reduced from 25 to 10
 const RATE_LIMIT_DELAY = 200; // ms between API calls
 
 // Workspace types with priorities
 const WORKSPACE_TYPES = {
-  HIGH_PRIORITY: ['cafe', 'library', 'coworking_space'],
-  MEDIUM_PRIORITY: ['coffee_shop', 'book_store', 'restaurant'],
-  LOW_PRIORITY: ['bar', 'shopping_mall']
+  PRIMARY: [
+    'cafe',
+    'coffee_shop',
+    'library',
+    'coworking_space',
+    'book_store'
+  ],
+  SECONDARY: [
+    'restaurant',
+    'bakery'
+  ]
 };
 
-// Keywords for filtering
-const EXCLUDE_KEYWORDS = [
-  'gas', 'station', 'pharmacy', 'hospital', 'clinic',
-  'bank', 'gym', 'fitness', 'school', 'daycare'
+// Excluded types
+const EXCLUDED_TYPES = [
+  'bar',
+  'night_club',
+  'lodging',
+  'gym',
+  'spa',
+  'shopping_mall',
+  'supermarket',
+  'pharmacy',
+  'hospital',
+  'school',
+  'university',
+  'car_repair',
+  'gas_station',
+  'bank',
+  'atm'
 ];
+
+// Excluded keywords
+const EXCLUDED_KEYWORDS = [
+  'pub', 'club', 'lounge', 'hotel', 'motel', 'resort', 'casino',
+  'theater', 'cinema', 'museum', 'gallery', 'stadium', 'arena',
+  'park', 'playground', 'zoo', 'aquarium', 'amusement',
+  'bowling', 'golf', 'swimming', 'sports',
+  'hair', 'barber', 'nail', 'tattoo', 'salon',
+  'laundry', 'cleaner', 'car wash', 'tire', 'auto parts', 'dealership',
+  'post office', 'police', 'fire station', 'courthouse', 'government',
+  'church', 'temple', 'mosque', 'synagogue', 'cemetery', 'funeral'
+];
+
+// Minimum rating requirement
+const MIN_RATING = 3.5;
 
 // Validate required environment variables
 function validateEnvironment() {
@@ -86,47 +112,35 @@ function initializeSupabase() {
   return createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 }
 
-async function getOrCreateImportSession(city: string, resume: boolean): Promise<ImportSession> {
-  const { data: existingSession } = await supabase
-    .from('import_sessions')
-    .select('*')
-    .eq('city', city)
-    .eq('status', 'in_progress')
-    .single();
-
-  if (existingSession && resume) {
-    return existingSession;
+// Helper function to check if a place should be excluded
+function shouldExcludePlace(place: any): boolean {
+  // Check for minimum rating
+  if (place.rating && place.rating < MIN_RATING) {
+    return true;
   }
 
-  const newSession = {
-    city,
-    processed_count: 0,
-    completed_types: [],
-    next_page_tokens: {},
-    last_processed_at: new Date().toISOString(),
-    status: 'in_progress'
-  };
+  // Check excluded types
+  if (place.types && place.types.some((type: string) => EXCLUDED_TYPES.includes(type))) {
+    return true;
+  }
 
-  const { data: session, error } = await supabase
-    .from('import_sessions')
-    .insert([newSession])
-    .select()
-    .single();
+  // Check excluded keywords in name
+  const nameLower = place.name.toLowerCase();
+  if (EXCLUDED_KEYWORDS.some(keyword => nameLower.includes(keyword))) {
+    return true;
+  }
 
-  if (error) throw error;
-  return session;
-}
+  // For secondary types (restaurants/bakeries), ensure they have cafe-like qualities
+  if (
+    place.types &&
+    place.types.some((type: string) => WORKSPACE_TYPES.SECONDARY.includes(type)) &&
+    !place.types.some((type: string) => WORKSPACE_TYPES.PRIMARY.includes(type))
+  ) {
+    // If it's a secondary type but doesn't have any primary type characteristics, exclude it
+    return true;
+  }
 
-async function updateImportSession(id: string, updates: Partial<ImportSession>) {
-  const { error } = await supabase
-    .from('import_sessions')
-    .update({
-      ...updates,
-      last_processed_at: new Date().toISOString()
-    })
-    .eq('id', id);
-
-  if (error) throw error;
+  return false;
 }
 
 async function getExistingPlaceIds() {
@@ -138,288 +152,59 @@ async function getExistingPlaceIds() {
   return new Set(data.map((w: any) => w.google_place_id));
 }
 
-async function geocodeCity(city: string) {
+async function fetchPlaceDetails(placeId: string) {
+  if (!GOOGLE_API_KEY) {
+    throw new Error('Google Places API key is not configured');
+  }
+
   const response = await fetch(
-    `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(city)}&key=${GOOGLE_API_KEY}`
+    `https://maps.googleapis.com/maps/api/place/details/json?place_id=${placeId}&fields=name,formatted_address,geometry,photos,opening_hours,rating,types&key=${GOOGLE_API_KEY}`
   );
+  
+  if (!response.ok) {
+    throw new Error(`Google Places API error: ${response.status} ${response.statusText}`);
+  }
   
   const data = await response.json();
   
-  if (data.status !== 'OK') {
-    throw new Error(`Failed to geocode city: ${data.status}`);
+  if (data.status === 'ERROR' || data.status === 'INVALID_REQUEST') {
+    throw new Error(`Google Places API error: ${data.status} - ${data.error_message}`);
   }
   
-  return {
-    lat: data.results[0].geometry.location.lat,
-    lng: data.results[0].geometry.location.lng
-  };
+  return data.result;
 }
 
-function calculateProgress(session: ImportSession) {
-  const allTypes = [
-    ...WORKSPACE_TYPES.HIGH_PRIORITY,
-    ...WORKSPACE_TYPES.MEDIUM_PRIORITY,
-    ...WORKSPACE_TYPES.LOW_PRIORITY
-  ];
-  
-  return {
-    typesCompleted: session.completed_types.length,
-    totalTypes: allTypes.length,
-    percentage: Math.round((session.completed_types.length / allTypes.length) * 100)
-  };
-}
-
-function isRetryableError(error: any) {
-  return error.status === 429 || // Rate limit
-         error.status >= 500 || // Server errors
-         error.message.includes('ETIMEDOUT') ||
-         error.message.includes('ECONNRESET');
-}
-
-async function retryWithExponentialBackoff<T>(
-  operation: () => Promise<T>,
-  maxRetries = 3,
-  baseDelay = 1000
-): Promise<T> {
-  let lastError: Error;
-  
-  for (let attempt = 0; attempt < maxRetries; attempt++) {
-    try {
-      return await operation();
-    } catch (error) {
-      lastError = error;
-      
-      if (!isRetryableError(error) || attempt === maxRetries - 1) {
-        throw error;
-      }
-      
-      const delay = baseDelay * Math.pow(2, attempt);
-      await new Promise(resolve => setTimeout(resolve, delay));
-    }
-  }
-  
-  throw lastError!;
-}
-
-serve(async (req) => {
-  const corsHeaders = {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-  };
-
-  if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
+async function searchPlaces(city: string, type: string) {
+  if (!GOOGLE_API_KEY) {
+    throw new Error('Google Places API key is not configured');
   }
 
-  try {
-    validateEnvironment();
-    supabase = initializeSupabase();
-    
-    const { city, resume = false } = await req.json();
-    
-    if (!city) {
-      return new Response(
-        JSON.stringify({ error: 'City parameter is required' }),
-        { status: 400, headers: { 'Content-Type': 'application/json', ...corsHeaders } }
-      );
-    }
+  const query = `${type} in ${city}`;
+  const url = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(query)}&key=${GOOGLE_API_KEY}`;
 
-    // Get or create import session
-    const session = await getOrCreateImportSession(city, resume);
-    
-    // Get remaining workspace types to process
-    const allTypes = [
-      ...WORKSPACE_TYPES.HIGH_PRIORITY,
-      ...WORKSPACE_TYPES.MEDIUM_PRIORITY,
-      ...WORKSPACE_TYPES.LOW_PRIORITY
-    ];
-    
-    const remainingTypes = allTypes.filter(type => 
-      !session.completed_types.includes(type)
-    );
-
-    if (remainingTypes.length === 0) {
-      await updateImportSession(session.id, {
-        status: 'completed'
-      });
-      
-      return new Response(
-        JSON.stringify({ 
-          message: 'Import completed successfully',
-          session: {
-            id: session.id,
-            city,
-            status: 'completed',
-            processed_count: session.processed_count
-          }
-        }),
-        { headers: { 'Content-Type': 'application/json', ...corsHeaders } }
-      );
-    }
-
-    const currentType = remainingTypes[0];
-    const existingPlaceIds = await getExistingPlaceIds();
-    
-    // Get places for current type
-    const places = await retryWithExponentialBackoff(async () => {
-      const location = await geocodeCity(city);
-      
-      const response = await fetch(
-        `https://maps.googleapis.com/maps/api/place/textsearch/json?` +
-        `query=${encodeURIComponent(currentType)} in ${encodeURIComponent(city)}&` +
-        `location=${location.lat},${location.lng}&` +
-        `radius=5000&` +
-        `key=${GOOGLE_API_KEY}`
-      );
-      
-      if (!response.ok) {
-        throw new Error(`Places API error: ${response.status}`);
-      }
-      
-      return await response.json();
-    });
-
-    // Filter places
-    const filteredPlaces = places.results
-      .filter((place: any) => !existingPlaceIds.has(place.place_id))
-      .filter((place: any) => {
-        const name = place.name.toLowerCase();
-        return !EXCLUDE_KEYWORDS.some(keyword => name.includes(keyword));
-      })
-      .slice(0, MAX_PLACES_PER_REQUEST);
-
-    // Process places in batches
-    const workspaces = [];
-    for (let i = 0; i < filteredPlaces.length; i += BATCH_SIZE) {
-      const batch = filteredPlaces.slice(i, i + BATCH_SIZE);
-      
-      const batchResults = await Promise.all(
-        batch.map(async (place: any, index: number) => {
-          // Add delay between requests
-          await new Promise(resolve => setTimeout(resolve, index * RATE_LIMIT_DELAY));
-          
-          try {
-            const details = await retryWithExponentialBackoff(async () => {
-              const response = await fetch(
-                `https://maps.googleapis.com/maps/api/place/details/json?` +
-                `place_id=${place.place_id}&` +
-                `fields=name,formatted_address,geometry,photos,opening_hours,rating,types&` +
-                `key=${GOOGLE_API_KEY}`
-              );
-              
-              if (!response.ok) {
-                throw new Error(`Place Details API error: ${response.status}`);
-              }
-              
-              return await response.json();
-            });
-
-            if (!details.result.geometry?.location) {
-              return null;
-            }
-
-            const location = `POINT(${
-              details.result.geometry.location.lng
-            } ${
-              details.result.geometry.location.lat
-            })`;
-
-            return {
-              name: details.result.name,
-              description: `A workspace located in ${city}`,
-              address: details.result.formatted_address,
-              location,
-              amenities: determineAmenities(details.result.types),
-              attributes: determineAttributes(details.result.types, details.result.rating),
-              opening_hours: parseOpeningHours(details.result.opening_hours?.weekday_text),
-              photos: details.result.photos?.map((photo: any) => 
-                `https://maps.googleapis.com/maps/api/place/photo?maxwidth=800&photo_reference=${photo.photo_reference}&key=${GOOGLE_API_KEY}`
-              ) || [],
-              google_place_id: place.place_id,
-              is_public: true
-            };
-          } catch (error) {
-            console.error(`Error processing place ${place.place_id}:`, error);
-            return null;
-          }
-        })
-      );
-      
-      workspaces.push(...batchResults.filter(Boolean));
-    }
-
-    // Insert workspaces
-    const { data: insertedWorkspaces, error: insertError } = await supabase
-      .from('workspaces')
-      .insert(workspaces)
-      .select();
-
-    if (insertError) {
-      throw insertError;
-    }
-
-    // Update session progress
-    await updateImportSession(session.id, {
-      processed_count: session.processed_count + insertedWorkspaces.length,
-      completed_types: [...session.completed_types, currentType],
-      next_page_tokens: {
-        ...session.next_page_tokens,
-        [currentType]: places.next_page_token
-      }
-    });
-
-    // Calculate cost estimate
-    const costEstimate = {
-      searchCost: 0.032, // $0.032 per Places API call
-      detailsCost: filteredPlaces.length * 0.017, // $0.017 per Place Details call
-      total: 0.032 + (filteredPlaces.length * 0.017)
-    };
-
-    return new Response(
-      JSON.stringify({
-        message: `Successfully imported ${insertedWorkspaces.length} workspaces`,
-        workspaces: insertedWorkspaces,
-        session: {
-          id: session.id,
-          city,
-          currentType,
-          processed: insertedWorkspaces.length,
-          totalProcessed: session.processed_count + insertedWorkspaces.length,
-          progress: calculateProgress(session),
-          costEstimate,
-          remainingTypes: remainingTypes.length - 1
-        }
-      }),
-      { headers: { 'Content-Type': 'application/json', ...corsHeaders } }
-    );
-
-  } catch (error) {
-    console.error('Import error:', error);
-    
-    return new Response(
-      JSON.stringify({ 
-        error: error.message,
-        type: 'import_error',
-        retryable: isRetryableError(error)
-      }),
-      { 
-        status: error.status || 500, 
-        headers: { 'Content-Type': 'application/json', ...corsHeaders } 
-      }
-    );
+  const response = await fetch(url);
+  
+  if (!response.ok) {
+    throw new Error(`Google Places API error: ${response.status} ${response.statusText}`);
   }
-});
+  
+  const data = await response.json();
+  
+  if (data.status === 'ERROR' || data.status === 'INVALID_REQUEST') {
+    throw new Error(`Google Places API error: ${data.status} - ${data.error_message}`);
+  }
+  
+  return data.results;
+}
 
-// Helper Functions
 function determineAmenities(types: string[]) {
   return {
     wifi: types.includes('cafe') || types.includes('library'),
-    coffee: types.includes('cafe') || types.includes('restaurant'),
+    coffee: types.includes('cafe') || types.includes('coffee_shop'),
     food: types.includes('restaurant') || types.includes('cafe'),
-    outlets: types.includes('cafe') || types.includes('library'),
+    outlets: types.includes('cafe') || types.includes('library') || types.includes('coworking_space'),
     seating: true,
-    meetingRooms: types.includes('library') || types.includes('book_store')
+    meetingRooms: types.includes('library') || types.includes('coworking_space')
   };
 }
 
@@ -447,3 +232,127 @@ function parseOpeningHours(weekdayText?: string[]) {
     return { day, open, close };
   });
 }
+
+serve(async (req) => {
+  const corsHeaders = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+  };
+
+  if (req.method === 'OPTIONS') {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  try {
+    validateEnvironment();
+    supabase = initializeSupabase();
+    
+    const { city } = await req.json();
+    
+    if (!city) {
+      return new Response(
+        JSON.stringify({ error: 'City parameter is required' }),
+        { status: 400, headers: { 'Content-Type': 'application/json', ...corsHeaders } }
+      );
+    }
+
+    const existingPlaceIds = await getExistingPlaceIds();
+    let allPlaces: any[] = [];
+
+    // First search for primary types
+    for (const type of WORKSPACE_TYPES.PRIMARY) {
+      const places = await searchPlaces(city, type);
+      allPlaces.push(...places);
+      await new Promise(resolve => setTimeout(resolve, RATE_LIMIT_DELAY));
+    }
+
+    // Then search for secondary types
+    for (const type of WORKSPACE_TYPES.SECONDARY) {
+      const places = await searchPlaces(city, type);
+      allPlaces.push(...places);
+      await new Promise(resolve => setTimeout(resolve, RATE_LIMIT_DELAY));
+    }
+
+    // Filter and deduplicate places
+    const uniquePlaces = Array.from(
+      new Map(allPlaces.map(place => [place.place_id, place])).values()
+    )
+    .filter(place => !existingPlaceIds.has(place.place_id))
+    .filter(place => !shouldExcludePlace(place))
+    .slice(0, MAX_PLACES_PER_REQUEST);
+
+    // Process places and get details
+    const workspaces = await Promise.all(
+      uniquePlaces.map(async (place, index) => {
+        await new Promise(resolve => setTimeout(resolve, index * RATE_LIMIT_DELAY));
+        
+        try {
+          const details = await fetchPlaceDetails(place.place_id);
+          
+          if (!details.geometry?.location) {
+            return null;
+          }
+
+          const location = `POINT(${details.geometry.location.lng} ${details.geometry.location.lat})`;
+
+          const workspace: Workspace = {
+            name: details.name,
+            description: `A workspace located in ${city}`,
+            address: details.formatted_address,
+            location,
+            amenities: determineAmenities(details.types),
+            attributes: determineAttributes(details.types, details.rating),
+            opening_hours: parseOpeningHours(details.opening_hours?.weekday_text),
+            photos: details.photos?.map((photo: any) => 
+              `https://maps.googleapis.com/maps/api/place/photo?maxwidth=800&photo_reference=${photo.photo_reference}&key=${GOOGLE_API_KEY}`
+            ) || [],
+            google_place_id: place.place_id,
+            is_public: true
+          };
+
+          return workspace;
+        } catch (error) {
+          console.error(`Error processing place ${place.place_id}:`, error);
+          return null;
+        }
+      })
+    );
+
+    // Filter out null results and insert into database
+    const validWorkspaces = workspaces.filter(Boolean);
+    
+    const { data: insertedWorkspaces, error: insertError } = await supabase
+      .from('workspaces')
+      .insert(validWorkspaces)
+      .select();
+
+    if (insertError) {
+      throw insertError;
+    }
+
+    return new Response(
+      JSON.stringify({
+        message: `Successfully imported ${insertedWorkspaces.length} workspaces for ${city}`,
+        workspaces: insertedWorkspaces,
+        total: uniquePlaces.length,
+        processed: insertedWorkspaces.length
+      }),
+      { headers: { 'Content-Type': 'application/json', ...corsHeaders } }
+    );
+
+  } catch (error) {
+    console.error('Edge function error:', error);
+    
+    return new Response(
+      JSON.stringify({ 
+        error: error.message || 'An unexpected error occurred',
+        details: error.stack
+      }),
+      { 
+        status: 500, 
+        headers: { 'Content-Type': 'application/json', ...corsHeaders } 
+      }
+    );
+  }
+});
