@@ -14,12 +14,24 @@ export const useAuthStore = create<AuthState>()(
     (set) => ({
       user: null,
       isLoading: true,
-      setUser: (user) => set({ user }),
-      setLoading: (loading) => set({ isLoading: loading }),
+      setUser: (user) => {
+        console.log('[AuthStore] Setting user:', user);
+        set({ user });
+      },
+      setLoading: (loading) => {
+        console.log('[AuthStore] Setting loading:', loading);
+        set({ isLoading: loading });
+      },
     }),
     {
       name: 'auth-storage',
       partialize: (state) => ({ user: state.user }),
+      onRehydrateStorage: () => {
+        console.log('[AuthStore] Rehydrating storage');
+        return (state) => {
+          console.log('[AuthStore] Storage rehydrated:', state);
+        };
+      },
     }
   )
 );
