@@ -145,15 +145,17 @@ export async function updateUser(userId: string, userData: Partial<User>) {
       }
     }
 
-    // Use supabaseAdmin instead of supabase to bypass RLS policies
+    // Use upsert to handle both update and insert cases
     const { data: profileData, error: profileError } = await supabaseAdmin
       .from('profiles')
-      .update({
+      .upsert({
+        id: userId,
         first_name: userData.firstName,
         last_name: userData.lastName,
-        role: userData.role
+        role: userData.role,
+        email: userData.email || undefined,
+        updated_at: new Date().toISOString()
       })
-      .eq('id', userId)
       .select()
       .single();
 
