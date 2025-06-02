@@ -41,18 +41,30 @@ export const useAuthStore = create<AuthState>((set) => ({
     console.log('[AuthStore] Setting up auth listener');
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       console.log('[AuthStore] Auth state changed:', event, session?.user?.email || 'null');
+      set({ isLoading: true });
       
-      if (event === 'SIGNED_IN' || event === 'USER_UPDATED') {
+      if (session?.user) {
         try {
           const user = await getCurrentUser();
-          console.log('[AuthStore] Updated user data:', user?.email || 'null');
+          console.log('[AuthStore] Full user profile loaded:', user);
           set({ user, isLoading: false });
         } catch (error) {
-          console.error('[AuthStore] Error getting user data:', error);
-          set({ user: null, isLoading: false });
+          console.error('[AuthStore] Error getting full user profile:', error);
+          // Fallback to basic user info if profile fetch fails
+          set({ 
+            user: {
+              id: session.user.id,
+              email: session.user.email!,
+              firstName: session.user.user_metadata?.first_name,
+              lastName: session.user.user_metadata?.last_name,
+              role: 'user',
+              avatar: session.user.user_metadata?.avatar_url
+            },
+            isLoading: false 
+          });
         }
-      } else if (event === 'SIGNED_OUT') {
-        console.log('[AuthStore] User signed out');
+      } else {
+        console.log('[AuthStore] No session, clearing user');
         set({ user: null, isLoading: false });
       }
     });

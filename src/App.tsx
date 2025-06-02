@@ -50,7 +50,7 @@ function App() {
     }
     
     if (requireAdmin && user.role !== 'admin') {
-      return <Navigate to="/app" replace />;
+      return <Navigate to="/app\" replace />;
     }
     
     return <>{children}</>;
@@ -61,13 +61,13 @@ function App() {
       <Routes>
         {/* Public routes */}
         <Route path="/" element={
-          user ? <Navigate to="/app" replace /> : <LandingPage />
+          user ? <Navigate to="/app\" replace /> : <LandingPage />
         } />
         <Route path="/login" element={
-          user ? <Navigate to="/app" replace /> : <LoginPage />
+          user ? <Navigate to="/app\" replace /> : <LoginPage />
         } />
         <Route path="/register" element={
-          user ? <Navigate to="/app" replace /> : <RegisterPage />
+          user ? <Navigate to="/app\" replace /> : <RegisterPage />
         } />
         
         {/* User routes */}
