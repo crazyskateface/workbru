@@ -145,36 +145,34 @@ export async function updateUser(userId: string, userData: Partial<User>) {
       }
     }
 
-    // Use upsert to handle both update and insert cases
+    // Use the database function to update the profile (bypasses RLS)
     const { data: profileData, error: profileError } = await supabaseAdmin
-      .from('profiles')
-      .upsert({
-        id: userId,
+      .rpc('admin_update_user', {
+        user_id: userId,
+        user_email: userData.email,
         first_name: userData.firstName,
         last_name: userData.lastName,
-        role: userData.role,
-        email: userData.email || undefined,
-        updated_at: new Date().toISOString()
-      })
-      .select()
-      .single();
+        user_role: userData.role
+      });
 
     if (profileError) {
       throw new Error(`Error updating profile: ${profileError.message}`);
     }
 
-    if (!profileData) {
+    if (!profileData || profileData.length === 0) {
       throw new Error('Profile not found or update failed');
     }
 
+    const profile = profileData[0];
+
     // Return the updated user data
     return {
-      id: userId,
-      email: userData.email || profileData.email,
-      firstName: profileData.first_name,
-      lastName: profileData.last_name,
-      role: profileData.role || 'user',
-      avatar: profileData.avatar_url
+      id: profile.id,
+      email: profile.email,
+      firstName: profile.first_name,
+      lastName: profile.last_name,
+      role: profile.role || 'user',
+      avatar: profile.avatar_url
     };
   } catch (error: any) {
     throw new Error(`Failed to update user: ${error.message}`);
