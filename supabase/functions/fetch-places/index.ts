@@ -336,7 +336,8 @@ serve(async (req) => {
         message: `Successfully imported ${insertedWorkspaces.length} workspaces for ${city}`,
         workspaces: insertedWorkspaces,
         total: uniquePlaces.length,
-        processed: insertedWorkspaces.length
+        processed: insertedWorkspaces.length,
+        maxPlacesPerRequest: MAX_PLACES_PER_REQUEST
       }),
       { headers: { 'Content-Type': 'application/json', ...corsHeaders } }
     );
