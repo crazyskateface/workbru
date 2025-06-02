@@ -67,8 +67,22 @@ const AdminUsers: React.FC = () => {
       setEditLoading(true);
       setError(null);
 
-      // Update the profile in the database
-      const { error: updateError } = await supabase
+      // First update the auth user metadata
+      const { error: authError } = await supabase.auth.admin.updateUserById(
+        selectedUser.id,
+        {
+          user_metadata: {
+            first_name: editForm.firstName,
+            last_name: editForm.lastName,
+            role: editForm.role
+          }
+        }
+      );
+
+      if (authError) throw authError;
+
+      // Then update the profile record
+      const { error: profileError } = await supabase
         .from('profiles')
         .update({
           first_name: editForm.firstName,
@@ -78,7 +92,7 @@ const AdminUsers: React.FC = () => {
         })
         .eq('id', selectedUser.id);
 
-      if (updateError) throw updateError;
+      if (profileError) throw profileError;
 
       // Update the local state
       setUsers(users.map(user => 
@@ -94,6 +108,7 @@ const AdminUsers: React.FC = () => {
 
       setIsEditModalOpen(false);
       setSelectedUser(null);
+      setSuccess('User updated successfully');
     } catch (error) {
       console.error('Error updating user:', error);
       setError('Failed to update user');
@@ -276,7 +291,7 @@ const AdminUsers: React.FC = () => {
                       <div className="flex items-center">
                         <div className="h-10 w-10 flex-shrink-0">
                           {user.avatar ? (
-                            <img className="h-10 w-10 rounded-full object-cover" src={user.avatar} alt={`${user.firstName} ${user.lastName}`} />
+                            <img className="h-10 w-10 rounded-full object-cover\" src={user.avatar} alt={`${user.firstName} ${user.lastName}`} />
                           ) : (
                             <div className="h-10 w-10 rounded-full bg-primary-100 dark:bg-primary-900/30 flex items-center justify-center text-primary-600 dark:text-primary-400 font-semibold">
                               {user.firstName?.charAt(0) || ''}
