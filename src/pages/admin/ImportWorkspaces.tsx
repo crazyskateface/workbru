@@ -21,6 +21,7 @@ interface ImportProgress {
   costEstimate?: {
     searchCost: number;
     detailsCost: number;
+    photoCost: number;
     total: number;
   };
 }
@@ -83,6 +84,7 @@ function ImportWorkspaces() {
       setImporting(true);
       setError(null);
       setSuccess(null);
+      setProgress(null);
 
       const { data: { session }, error: sessionError } = await supabase.auth.getSession();
       
@@ -109,21 +111,22 @@ function ImportWorkspaces() {
         throw new Error(data.error);
       }
 
+      // Update progress with cost estimates
+      setProgress({
+        processed: data.processed || 0,
+        total: data.total || 0,
+        percentage: Math.round((data.processed / data.total) * 100) || 0,
+        currentType: 'Places',
+        costEstimate: data.costs
+      });
+
       setSuccess(data.message);
+      
       await Promise.all([
         loadImportSessions(),
         loadRecentWorkspaces()
       ]);
-      
-      if (data.session) {
-        setProgress({
-          processed: data.session.processed,
-          total: data.session.totalProcessed,
-          percentage: data.session.progress.percentage,
-          currentType: data.session.currentType,
-          costEstimate: data.session.costEstimate
-        });
-      }
+
     } catch (error) {
       console.error('Error importing places:', error);
       setError(error.message);
@@ -233,20 +236,26 @@ function ImportWorkspaces() {
                 <div className="flex items-center justify-between">
                   <span className="text-gray-600 dark:text-gray-400">Place Search</span>
                   <span className="font-medium text-gray-900 dark:text-white">
-                    ${progress.costEstimate.searchCost.toFixed(2)}
+                    ${progress.costEstimate.searchCost.toFixed(3)}
                   </span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-gray-600 dark:text-gray-400">Place Details</span>
                   <span className="font-medium text-gray-900 dark:text-white">
-                    ${progress.costEstimate.detailsCost.toFixed(2)}
+                    ${progress.costEstimate.detailsCost.toFixed(3)}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-600 dark:text-gray-400">Photos</span>
+                  <span className="font-medium text-gray-900 dark:text-white">
+                    ${progress.costEstimate.photoCost.toFixed(3)}
                   </span>
                 </div>
                 <div className="pt-4 border-t border-gray-200 dark:border-dark-border">
                   <div className="flex items-center justify-between">
                     <span className="font-medium text-gray-900 dark:text-white">Total Cost</span>
                     <span className="text-lg font-bold text-primary-600 dark:text-primary-400">
-                      ${progress.costEstimate.total.toFixed(2)}
+                      ${progress.costEstimate.total.toFixed(3)}
                     </span>
                   </div>
                 </div>
