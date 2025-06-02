@@ -1,69 +1,120 @@
-import React, { useState } from 'react';
-import { Search, Filter, Trash2, Eye, Edit, CheckCircle, XCircle, Mail, Plus } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Search, Filter, Trash2, Eye, Edit, Mail, Plus, X, Check, Loader2 } from 'lucide-react';
+import { supabase } from '../../lib/supabase';
 import { User } from '../../types';
 
-// Mock user data
-const mockUsers: User[] = [
-  {
-    id: '1',
-    email: 'sarah.johnson@example.com',
-    firstName: 'Sarah',
-    lastName: 'Johnson',
-    avatar: 'https://images.pexels.com/photos/774909/pexels-photo-774909.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=100',
-    role: 'user',
-    createdAt: '2023-01-15T14:22:10Z',
-    lastLogin: '2023-05-20T09:15:30Z',
-  },
-  {
-    id: '2',
-    email: 'michael.smith@example.com',
-    firstName: 'Michael',
-    lastName: 'Smith',
-    avatar: 'https://images.pexels.com/photos/614810/pexels-photo-614810.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=100',
-    role: 'admin',
-    createdAt: '2022-11-05T10:12:45Z',
-    lastLogin: '2023-05-21T16:30:15Z',
-  },
-  {
-    id: '3',
-    email: 'jessica.williams@example.com',
-    firstName: 'Jessica',
-    lastName: 'Williams',
-    avatar: 'https://images.pexels.com/photos/1239291/pexels-photo-1239291.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=100',
-    role: 'user',
-    createdAt: '2023-02-20T08:45:30Z',
-    lastLogin: '2023-05-18T11:20:45Z',
-  },
-  {
-    id: '4',
-    email: 'david.brown@example.com',
-    firstName: 'David',
-    lastName: 'Brown',
-    role: 'user',
-    createdAt: '2023-03-10T15:33:22Z',
-    lastLogin: '2023-05-15T14:10:30Z',
-  },
-  {
-    id: '5',
-    email: 'emily.jones@example.com',
-    firstName: 'Emily',
-    lastName: 'Jones',
-    avatar: 'https://images.pexels.com/photos/1065084/pexels-photo-1065084.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=100',
-    role: 'user',
-    createdAt: '2023-04-05T09:15:10Z',
-    lastLogin: '2023-05-19T10:05:15Z',
-  }
-];
-
 const AdminUsers: React.FC = () => {
-  const [users, setUsers] = useState<User[]>(mockUsers);
-  const [loading, setLoading] = useState(false);
+  const [users, setUsers] = useState<User[]>([]);
+  const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [showFilters, setShowFilters] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editForm, setEditForm] = useState({
+    firstName: '',
+    lastName: '',
+    role: 'user' as 'user' | 'admin'
+  });
+  const [error, setError] = useState<string | null>(null);
   
-  // Filter users based on search query
+  useEffect(() => {
+    loadUsers();
+  }, []);
+
+  const loadUsers = async () => {
+    try {
+      setLoading(true);
+      const { data: profiles, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      setUsers(profiles.map(profile => ({
+        id: profile.id,
+        email: profile.email,
+        firstName: profile.first_name,
+        lastName: profile.last_name,
+        avatar: profile.avatar_url,
+        role: profile.role as 'user' | 'admin',
+        createdAt: profile.created_at,
+      })));
+    } catch (error) {
+      console.error('Error loading users:', error);
+      setError('Failed to load users');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleEditClick = (user: User) => {
+    setSelectedUser(user);
+    setEditForm({
+      firstName: user.firstName || '',
+      lastName: user.lastName || '',
+      role: user.role
+    });
+    setIsEditModalOpen(true);
+  };
+
+  const handleEditSubmit = async () => {
+    if (!selectedUser) return;
+
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({
+          first_name: editForm.firstName,
+          last_name: editForm.lastName,
+          role: editForm.role,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', selectedUser.id);
+
+      if (error) throw error;
+
+      setUsers(users.map(user => 
+        user.id === selectedUser.id 
+          ? { 
+              ...user, 
+              firstName: editForm.firstName,
+              lastName: editForm.lastName,
+              role: editForm.role
+            }
+          : user
+      ));
+
+      setIsEditModalOpen(false);
+      setSelectedUser(null);
+    } catch (error) {
+      console.error('Error updating user:', error);
+      setError('Failed to update user');
+    }
+  };
+
+  const handleDeleteClick = (user: User) => {
+    setSelectedUser(user);
+    setIsDeleteModalOpen(true);
+  };
+  
+  const handleDeleteConfirm = async () => {
+    if (!selectedUser?.id) return;
+
+    try {
+      const { error } = await supabase.auth.admin.deleteUser(selectedUser.id);
+      if (error) throw error;
+
+      setUsers(users.filter(u => u.id !== selectedUser.id));
+      setIsDeleteModalOpen(false);
+      setSelectedUser(null);
+    } catch (error) {
+      console.error('Error deleting user:', error);
+      setError('Failed to delete user');
+    }
+  };
+  
   const filteredUsers = users.filter((user) => {
     if (!searchQuery) return true;
     
@@ -73,32 +124,6 @@ const AdminUsers: React.FC = () => {
       user.email.toLowerCase().includes(searchQuery.toLowerCase())
     );
   });
-  
-  const handleDeleteClick = (user: User) => {
-    setSelectedUser(user);
-    setIsDeleteModalOpen(true);
-  };
-  
-  const handleDeleteConfirm = () => {
-    if (selectedUser?.id) {
-      // In a real app, this would call your API to delete the user
-      setUsers(users.filter(u => u.id !== selectedUser.id));
-      setIsDeleteModalOpen(false);
-      setSelectedUser(null);
-    }
-  };
-  
-  // Format date to a more readable format
-  const formatDate = (dateString: string | undefined) => {
-    if (!dateString) return 'N/A';
-    
-    const date = new Date(dateString);
-    return new Intl.DateTimeFormat('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-    }).format(date);
-  };
   
   return (
     <div>
@@ -191,13 +216,19 @@ const AdminUsers: React.FC = () => {
           </div>
         )}
       </div>
+
+      {error && (
+        <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 rounded-lg">
+          {error}
+        </div>
+      )}
       
       {/* Users table */}
       <div className="bg-white dark:bg-dark-card rounded-xl shadow-md overflow-hidden">
         {loading ? (
           <div className="flex items-center justify-center h-64">
             <div className="flex flex-col items-center">
-              <div className="w-12 h-12 border-4 border-primary-200 border-t-primary-600 rounded-full animate-spin"></div>
+              <Loader2 className="w-8 h-8 text-primary-600 animate-spin" />
               <p className="mt-4 text-gray-600 dark:text-gray-400">Loading users...</p>
             </div>
           </div>
@@ -226,9 +257,6 @@ const AdminUsers: React.FC = () => {
                   <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                     Joined
                   </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    Last Login
-                  </th>
                   <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                     Actions
                   </th>
@@ -241,7 +269,7 @@ const AdminUsers: React.FC = () => {
                       <div className="flex items-center">
                         <div className="h-10 w-10 flex-shrink-0">
                           {user.avatar ? (
-                            <img className="h-10 w-10 rounded-full object-cover\" src={user.avatar} alt={`${user.firstName} ${user.lastName}`} />
+                            <img className="h-10 w-10 rounded-full object-cover" src={user.avatar} alt={`${user.firstName} ${user.lastName}`} />
                           ) : (
                             <div className="h-10 w-10 rounded-full bg-primary-100 dark:bg-primary-900/30 flex items-center justify-center text-primary-600 dark:text-primary-400 font-semibold">
                               {user.firstName?.charAt(0) || ''}
@@ -270,17 +298,17 @@ const AdminUsers: React.FC = () => {
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 dark:text-gray-300">
-                      {formatDate(user.createdAt)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 dark:text-gray-300">
-                      {formatDate(user.lastLogin)}
+                      {new Date(user.createdAt).toLocaleDateString()}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                       <div className="flex justify-end space-x-2">
                         <button className="text-primary-600 hover:text-primary-900 dark:text-primary-400 dark:hover:text-primary-300">
                           <Eye className="h-5 w-5" />
                         </button>
-                        <button className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300">
+                        <button 
+                          onClick={() => handleEditClick(user)}
+                          className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300"
+                        >
                           <Edit className="h-5 w-5" />
                         </button>
                         <button 
@@ -297,49 +325,69 @@ const AdminUsers: React.FC = () => {
             </table>
           </div>
         )}
-        
-        {/* Pagination */}
-        <div className="bg-white dark:bg-dark-card px-4 py-3 flex items-center justify-between border-t border-gray-200 dark:border-dark-border sm:px-6">
-          <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
-            <div>
-              <p className="text-sm text-gray-700 dark:text-gray-300">
-                Showing <span className="font-medium">1</span> to <span className="font-medium">{filteredUsers.length}</span> of{' '}
-                <span className="font-medium">{filteredUsers.length}</span> results
-              </p>
+      </div>
+      
+      {/* Edit Modal */}
+      {isEditModalOpen && selectedUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+          <div className="bg-white dark:bg-dark-card rounded-lg shadow-xl max-w-md w-full p-6">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Edit User</h3>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  First Name
+                </label>
+                <input
+                  type="text"
+                  value={editForm.firstName}
+                  onChange={(e) => setEditForm({ ...editForm, firstName: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-input text-gray-900 dark:text-white"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Last Name
+                </label>
+                <input
+                  type="text"
+                  value={editForm.lastName}
+                  onChange={(e) => setEditForm({ ...editForm, lastName: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-input text-gray-900 dark:text-white"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Role
+                </label>
+                <select
+                  value={editForm.role}
+                  onChange={(e) => setEditForm({ ...editForm, role: e.target.value as 'user' | 'admin' })}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-input text-gray-900 dark:text-white"
+                >
+                  <option value="user">User</option>
+                  <option value="admin">Admin</option>
+                </select>
+              </div>
             </div>
-            <div>
-              <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
-                <a
-                  href="#"
-                  className="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-sm font-medium text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-dark-input"
-                >
-                  <span className="sr-only">Previous</span>
-                  <svg className="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                    <path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" />
-                  </svg>
-                </a>
-                <a
-                  href="#"
-                  className="relative inline-flex items-center px-4 py-2 border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-dark-input"
-                >
-                  1
-                </a>
-                <a
-                  href="#"
-                  className="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-sm font-medium text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-dark-input"
-                >
-                  <span className="sr-only">Next</span>
-                  <svg className="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                    <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
-                  </svg>
-                </a>
-              </nav>
+            <div className="mt-6 flex justify-end space-x-4">
+              <button
+                onClick={() => setIsEditModalOpen(false)}
+                className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-dark-input rounded-lg"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleEditSubmit}
+                className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
+              >
+                Save Changes
+              </button>
             </div>
           </div>
         </div>
-      </div>
-      
-      {/* Delete confirmation modal */}
+      )}
+
+      {/* Delete Confirmation Modal */}
       {isDeleteModalOpen && selectedUser && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
           <div className="bg-white dark:bg-dark-card rounded-lg shadow-xl max-w-md w-full p-6">
