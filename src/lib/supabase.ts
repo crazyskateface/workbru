@@ -133,20 +133,16 @@ export async function getCurrentUser(): Promise<User | null> {
 
 export async function updateUser(userId: string, userData: Partial<User>) {
   try {
-    // First update the user's metadata in auth.users
-    const { error: authError } = await supabaseAdmin.auth.admin.updateUserById(
-      userId,
-      {
-        email: userData.email,
-        user_metadata: {
-          first_name: userData.firstName,
-          last_name: userData.lastName
-        }
-      }
-    );
+    // First update the user's email in auth.users if it has changed
+    if (userData.email) {
+      const { error: authError } = await supabaseAdmin.auth.admin.updateUserById(
+        userId,
+        { email: userData.email }
+      );
 
-    if (authError) {
-      throw new Error(`Error updating auth user: ${authError.message}`);
+      if (authError) {
+        throw new Error(`Error updating auth user: ${authError.message}`);
+      }
     }
 
     // Then update the profile in profiles table
@@ -155,23 +151,27 @@ export async function updateUser(userId: string, userData: Partial<User>) {
       .update({
         first_name: userData.firstName,
         last_name: userData.lastName,
-        role: userData.role,
-        email: userData.email
+        role: userData.role
       })
       .eq('id', userId)
       .select()
-      .single();
+      .maybeSingle();
 
     if (profileError) {
       throw new Error(`Error updating profile: ${profileError.message}`);
     }
 
+    if (!profileData) {
+      throw new Error('Profile not found or update failed');
+    }
+
+    // Return the updated user data
     return {
       id: userId,
-      email: userData.email!,
-      firstName: userData.firstName,
-      lastName: userData.lastName,
-      role: userData.role || 'user',
+      email: userData.email || profileData.email,
+      firstName: profileData.first_name,
+      lastName: profileData.last_name,
+      role: profileData.role || 'user',
       avatar: profileData.avatar_url
     };
   } catch (error: any) {
