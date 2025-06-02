@@ -35,6 +35,7 @@ const LoginPage: React.FC = () => {
   
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    console.log('Login attempt started');
     
     if (!email || !password) {
       setError('Please enter both email and password');
@@ -45,6 +46,7 @@ const LoginPage: React.FC = () => {
       setLoading(true);
       setError(null);
       
+      console.log('Calling signInWithEmail');
       const { data, error } = await signInWithEmail(email, password);
       
       if (error) {
@@ -52,22 +54,18 @@ const LoginPage: React.FC = () => {
       }
       
       if (data) {
+        console.log('Login successful, preparing to redirect');
+        
         // Get the attempted route or default to /app
-        const attemptedRoute = localStorage.getItem('attemptedRoute') || '/app';
+        const attemptedRoute = localStorage.getItem('attemptedRoute');
+        console.log('Attempted route:', attemptedRoute);
+        
         // Clear the attempted route
         localStorage.removeItem('attemptedRoute');
         
-        // Success animation before redirect
-        await anime({
-          targets: 'form',
-          opacity: [1, 0],
-          translateY: [0, -20],
-          easing: 'easeInOutQuad',
-          duration: 400
-        }).finished;
-        
-        // Navigate to the attempted route or default route
-        navigate(attemptedRoute, { replace: true });
+        // Immediate redirect without animation
+        console.log('Redirecting to:', attemptedRoute || '/app');
+        navigate(attemptedRoute || '/app', { replace: true });
       }
     } catch (err: any) {
       console.error('Login error:', err);
