@@ -18,7 +18,7 @@ RETURNS TABLE(
 )
 LANGUAGE plpgsql
 SECURITY DEFINER -- This allows the function to bypass RLS
-AS $
+AS $$
 BEGIN
   -- Update the profile
   UPDATE profiles SET
@@ -41,4 +41,4 @@ BEGIN
   FROM profiles p
   WHERE p.id = user_id;
 END;
-$;
+$$;

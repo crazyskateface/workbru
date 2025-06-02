@@ -27,10 +27,10 @@ const AdminLayout: React.FC = () => {
     <div className="h-screen flex bg-gray-50 dark:bg-dark-bg transition-colors duration-300">
       {/* Sidebar */}
       <aside className="w-64 bg-white dark:bg-dark-card shadow-md flex flex-col h-screen sticky top-0">
-        <div className="p-6">
-          <h1 className="text-2xl font-bold text-primary-700 dark:text-primary-400">
+        <div className="p-6 flex items-center justify-between">
+          <Link to="/" className="text-2xl font-bold text-primary-700 dark:text-primary-400 hover:opacity-80 transition-opacity duration-200">
             Workbru <span className="text-sm font-normal">Admin</span>
-          </h1>
+          </Link>
         </div>
         
         <nav className="flex-1">
