@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Search, Filter, Trash2, Eye, Edit, CheckCircle, XCircle, Mail, Plus } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Search, Filter, Trash2, Eye, Edit, Mail, Plus } from 'lucide-react';
 import { User } from '../../types';
 import { supabase } from '../../lib/supabase';
 
@@ -11,11 +11,21 @@ const AdminUsers: React.FC = () => {
   const [showFilters, setShowFilters] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+
+  const renderCount = useRef(0);
+  const fetchedRef = useRef(false);
+  renderCount.current += 1;
   
-  // Only fetch users once when component mounts
+  console.log(`Users component render #${renderCount.current}`);
+
   useEffect(() => {
     const fetchUsers = async () => {
+      // Prevent duplicate fetches
+      if (fetchedRef.current) return;
+      fetchedRef.current = true;
+
       try {
+        console.log('useEffect and fetchUsers triggered');
         setLoading(true);
         setError(null);
 
