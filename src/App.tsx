@@ -29,6 +29,8 @@ function App() {
 
   useEffect(() => {
     initializeAuth();
+    const unsubscribe = useAuthStore.getState().setupAuthListener();
+    return unsubscribe;
   }, [initializeAuth]);
 
   // Protected route component
@@ -42,7 +44,7 @@ function App() {
     }
     
     if (!user) {
-      // Save attempted route before redirecting to login
+      console.log('[App] User is null, redirecting to login');
       localStorage.setItem('attemptedRoute', location.pathname + location.search);
       return <Navigate to="/login" replace />;
     }
