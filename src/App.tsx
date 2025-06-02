@@ -33,6 +33,10 @@ function App() {
     return unsubscribe;
   }, [initializeAuth]);
 
+  useEffect(() => {
+    console.log('[App] User state changed:', user?.email || 'null', 'isLoading:', isLoading);
+  }, [user, isLoading]);  
+
   // Protected route component
   const ProtectedRoute = ({ children, requireAdmin = false }: { children: React.ReactNode, requireAdmin?: boolean }) => {
     if (isLoading) {

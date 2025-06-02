@@ -39,32 +39,48 @@ export const useAuthStore = create<AuthState>((set) => ({
 
   setupAuthListener: () => {
     console.log('[AuthStore] Setting up auth listener');
+    
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       console.log('[AuthStore] Auth state changed:', event, session?.user?.email || 'null');
+      console.log('[AuthStore] Session exists:', !!session);
+      console.log('[AuthStore] User exists:', !!session?.user);
+      
       set({ isLoading: true });
       
       if (session?.user) {
+        console.log('[AuthStore] Processing login with user...');
+        
         try {
-          const user = await getCurrentUser();
-          console.log('[AuthStore] Full user profile loaded:', user);
-          set({ user, isLoading: false });
+          console.log('[AuthStore] Getting current user...');
+          const fullUser = await getCurrentUser();
+          console.log('[AuthStore] Got full user profile:', fullUser);
+          
+          if (fullUser) {
+            set({ user: fullUser, isLoading: false });
+            console.log('[AuthStore] User set in store:', fullUser.email);
+          } else {
+            throw new Error('getCurrentUser returned null');
+          }
         } catch (error) {
-          console.error('[AuthStore] Error getting full user profile:', error);
-          // Fallback to basic user info if profile fetch fails
-          set({ 
-            user: {
-              id: session.user.id,
-              email: session.user.email!,
-              firstName: session.user.user_metadata?.first_name,
-              lastName: session.user.user_metadata?.last_name,
-              role: 'user',
-              avatar: session.user.user_metadata?.avatar_url
-            },
-            isLoading: false 
-          });
+          console.error('[AuthStore] Error getting full user, using fallback:', error);
+          
+          // Fallback to basic user info from session
+          const basicUser = {
+            id: session.user.id,
+            email: session.user.email!,
+            firstName: session.user.user_metadata?.first_name || '',
+            lastName: session.user.user_metadata?.last_name || '',
+            role: 'user',
+            avatar: null,
+            created_at: session.user.created_at,
+            updated_at: new Date().toISOString()
+          };
+          
+          console.log('[AuthStore] Setting fallback user:', basicUser);
+          set({ user: basicUser, isLoading: false });
         }
       } else {
-        console.log('[AuthStore] No session, clearing user');
+        console.log('[AuthStore] No user in session, clearing user state');
         set({ user: null, isLoading: false });
       }
     });

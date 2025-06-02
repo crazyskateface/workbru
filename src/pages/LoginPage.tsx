@@ -34,7 +34,7 @@ const LoginPage: React.FC = () => {
   
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log('Login attempt started');
+    console.log('[LoginPage] Login attempt started');
     
     if (!email || !password) {
       setError('Please enter both email and password');
@@ -45,19 +45,20 @@ const LoginPage: React.FC = () => {
       setLoading(true);
       setError(null);
       
-      console.log('Calling signInWithEmail');
+      console.log('[LoginPage] Calling signInWithEmail');
       const { error } = await signInWithEmail(email, password);
       
       if (error) {
         throw error;
       }
 
-      // Success! App.tsx will handle the redirect automatically
-      console.log('Login successful');
+      console.log('[LoginPage] Login successful, auth listener will handle redirect');
+      // Don't set loading to false here - let the auth listener handle it
       
     } catch (err: any) {
-      console.error('Login error:', err);
+      console.error('[LoginPage] Login error:', err);
       setError(err.message || 'Failed to login. Please check your credentials.');
+      setLoading(false);
       
       // Shake animation for error
       anime({
@@ -66,8 +67,6 @@ const LoginPage: React.FC = () => {
         duration: 400,
         easing: 'easeInOutQuad'
       });
-    } finally {
-      setLoading(false);
     }
   };
   
