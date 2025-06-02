@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
 import { supabase } from '../lib/supabase';
 
@@ -10,7 +10,6 @@ interface AuthProviderProps {
 const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const { setUser, setLoading } = useAuthStore();
   const navigate = useNavigate();
-  const location = useLocation();
 
   useEffect(() => {
     console.log('[AuthProvider] Setting up auth listener');
@@ -22,10 +21,7 @@ const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       try {
         if (event === 'SIGNED_OUT' || !session?.user) {
           setUser(null);
-          localStorage.removeItem('lastRoute');
-          if (location.pathname !== '/' && location.pathname !== '/login' && location.pathname !== '/register') {
-            navigate('/login', { replace: true });
-          }
+          navigate('/login', { replace: true });
           return;
         }
 
@@ -56,19 +52,9 @@ const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
         setUser(user);
 
-        // Handle navigation after successful sign in
+        // Always redirect to /app after successful sign in
         if (event === 'SIGNED_IN') {
-          const attemptedRoute = localStorage.getItem('attemptedRoute');
-          const lastRoute = localStorage.getItem('lastRoute');
-          
-          if (attemptedRoute) {
-            localStorage.removeItem('attemptedRoute');
-            navigate(attemptedRoute, { replace: true });
-          } else if (lastRoute && location.pathname === '/') {
-            navigate(lastRoute, { replace: true });
-          } else if (location.pathname === '/login' || location.pathname === '/register') {
-            navigate('/app', { replace: true });
-          }
+          navigate('/app', { replace: true });
         }
       } catch (error) {
         console.error('[AuthProvider] Error in auth state change:', error);
@@ -82,7 +68,7 @@ const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       console.log('[AuthProvider] Cleaning up auth listener');
       subscription.unsubscribe();
     };
-  }, [setUser, setLoading, navigate, location.pathname]);
+  }, [setUser, setLoading, navigate]);
 
   return <>{children}</>;
 };
