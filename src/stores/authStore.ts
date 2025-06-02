@@ -24,14 +24,11 @@ export const useAuthStore = create<AuthState>((set) => ({
   setupAuthListener: () => {
     console.log('[AuthStore] Setting up auth listener');
     
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log('[AuthStore] Auth state changed:', event, session?.user?.email || 'null');
-      
-      set({ isLoading: true });
+    // Get initial session immediately
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      console.log('[AuthStore] Initial session check:', session?.user?.email || 'null');
       
       if (session?.user) {
-        console.log('[AuthStore] User logged in, fetching profile directly...');
-        
         try {
           const { data: profile, error: profileError } = await supabase
             .from('profiles')
@@ -39,10 +36,7 @@ export const useAuthStore = create<AuthState>((set) => ({
             .eq('id', session.user.id)
             .single();
             
-          if (profileError) {
-            console.error('[AuthStore] Profile error:', profileError);
-            throw profileError;
-          }
+          if (profileError) throw profileError;
           
           const user: User = {
             id: session.user.id,
@@ -55,28 +49,53 @@ export const useAuthStore = create<AuthState>((set) => ({
             updated_at: profile?.updated_at
           };
           
-          console.log('[AuthStore] Setting user from profile:', user);
           set({ user, isLoading: false });
-          
         } catch (error) {
-          console.error('[AuthStore] Error fetching profile, using basic user:', error);
-          
-          const basicUser: User = {
-            id: session.user.id,
-            email: session.user.email!,
-            role: 'user',
-            firstName: session.user.user_metadata?.first_name || '',
-            lastName: session.user.user_metadata?.last_name || '',
-            avatar: null,
-            created_at: session.user.created_at,
-            updated_at: new Date().toISOString()
-          };
-          
-          set({ user: basicUser, isLoading: false });
+          console.error('[AuthStore] Error fetching initial profile:', error);
+          set({ user: null, isLoading: false });
         }
       } else {
-        console.log('[AuthStore] No user in session, clearing user state');
         set({ user: null, isLoading: false });
+      }
+    });
+    
+    // Set up auth state change listener
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log('[AuthStore] Auth state changed:', event, session?.user?.email || 'null');
+      
+      if (event === 'SIGNED_OUT') {
+        set({ user: null, isLoading: false });
+        return;
+      }
+      
+      if (session?.user) {
+        set({ isLoading: true });
+        
+        try {
+          const { data: profile, error: profileError } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', session.user.id)
+            .single();
+            
+          if (profileError) throw profileError;
+          
+          const user: User = {
+            id: session.user.id,
+            email: session.user.email!,
+            role: profile?.role || 'user',
+            firstName: profile?.first_name,
+            lastName: profile?.last_name,
+            avatar: profile?.avatar_url,
+            created_at: profile?.created_at,
+            updated_at: profile?.updated_at
+          };
+          
+          set({ user, isLoading: false });
+        } catch (error) {
+          console.error('[AuthStore] Error fetching profile:', error);
+          set({ user: null, isLoading: false });
+        }
       }
     });
 

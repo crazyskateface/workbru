@@ -41,17 +41,22 @@ function App() {
     }
   }, [location, user]);
 
-  // Restore last route on initial load
+  // Handle navigation after auth state changes
   useEffect(() => {
-    if (!isLoading && user) {
-      const lastRoute = localStorage.getItem('lastRoute');
-      const attemptedRoute = localStorage.getItem('attemptedRoute');
-      
-      if (attemptedRoute) {
-        localStorage.removeItem('attemptedRoute');
-        navigate(attemptedRoute, { replace: true });
-      } else if (lastRoute && location.pathname === '/') {
-        navigate(lastRoute, { replace: true });
+    if (!isLoading) {
+      if (user) {
+        const attemptedRoute = localStorage.getItem('attemptedRoute');
+        const lastRoute = localStorage.getItem('lastRoute');
+        
+        if (attemptedRoute) {
+          localStorage.removeItem('attemptedRoute');
+          navigate(attemptedRoute, { replace: true });
+        } else if (lastRoute && location.pathname === '/') {
+          navigate(lastRoute, { replace: true });
+        }
+      } else if (location.pathname !== '/' && location.pathname !== '/login' && location.pathname !== '/register') {
+        localStorage.setItem('attemptedRoute', location.pathname + location.search);
+        navigate('/login', { replace: true });
       }
     }
   }, [isLoading, user, navigate, location.pathname]);
@@ -67,7 +72,6 @@ function App() {
     }
     
     if (!user) {
-      localStorage.setItem('attemptedRoute', location.pathname + location.search);
       return <Navigate to="/login" replace />;
     }
     
@@ -83,13 +87,13 @@ function App() {
       <Routes>
         {/* Public routes */}
         <Route path="/" element={
-          user ? <Navigate to={localStorage.getItem('lastRoute') || '/app'} replace /> : <LandingPage />
+          user ? <Navigate to="/app" replace /> : <LandingPage />
         } />
         <Route path="/login" element={
-          user ? <Navigate to={localStorage.getItem('lastRoute') || '/app'} replace /> : <LoginPage />
+          user ? <Navigate to="/app" replace /> : <LoginPage />
         } />
         <Route path="/register" element={
-          user ? <Navigate to={localStorage.getItem('lastRoute') || '/app'} replace /> : <RegisterPage />
+          user ? <Navigate to="/app" replace /> : <RegisterPage />
         } />
         
         {/* User routes */}
