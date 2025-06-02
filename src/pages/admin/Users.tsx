@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Search, Filter, Trash2, Eye, Edit, Mail, Plus, X, Check, Loader2 } from 'lucide-react';
-import { supabase } from '../../lib/supabase';
+import { supabase, supabaseAdmin } from '../../lib/supabase';
 import { User } from '../../types';
 
 const AdminUsers: React.FC = () => {
@@ -18,6 +18,7 @@ const AdminUsers: React.FC = () => {
   });
   const [error, setError] = useState<string | null>(null);
   const [editLoading, setEditLoading] = useState(false);
+  const [success, setSuccess] = useState<string | null>(null);
   
   useEffect(() => {
     loadUsers();
@@ -26,7 +27,7 @@ const AdminUsers: React.FC = () => {
   const loadUsers = async () => {
     try {
       setLoading(true);
-      const { data: profiles, error } = await supabase
+      const { data: profiles, error } = await supabaseAdmin
         .from('profiles')
         .select('*')
         .order('created_at', { ascending: false });
@@ -67,8 +68,8 @@ const AdminUsers: React.FC = () => {
       setEditLoading(true);
       setError(null);
 
-      // First update the auth user metadata
-      const { error: authError } = await supabase.auth.admin.updateUserById(
+      // First update the auth user metadata using the admin client
+      const { error: authError } = await supabaseAdmin.auth.admin.updateUserById(
         selectedUser.id,
         {
           user_metadata: {
@@ -81,8 +82,8 @@ const AdminUsers: React.FC = () => {
 
       if (authError) throw authError;
 
-      // Then update the profile record
-      const { error: profileError } = await supabase
+      // Then update the profile record using the admin client
+      const { error: profileError } = await supabaseAdmin
         .from('profiles')
         .update({
           first_name: editForm.firstName,
@@ -126,7 +127,7 @@ const AdminUsers: React.FC = () => {
     if (!selectedUser?.id) return;
 
     try {
-      const { error } = await supabase.auth.admin.deleteUser(selectedUser.id);
+      const { error } = await supabaseAdmin.auth.admin.deleteUser(selectedUser.id);
       if (error) throw error;
 
       setUsers(users.filter(u => u.id !== selectedUser.id));
@@ -244,6 +245,12 @@ const AdminUsers: React.FC = () => {
           {error}
         </div>
       )}
+
+      {success && (
+        <div className="mb-6 p-4 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 rounded-lg">
+          {success}
+        </div>
+      )}
       
       {/* Users table */}
       <div className="bg-white dark:bg-dark-card rounded-xl shadow-md overflow-hidden">
@@ -291,7 +298,7 @@ const AdminUsers: React.FC = () => {
                       <div className="flex items-center">
                         <div className="h-10 w-10 flex-shrink-0">
                           {user.avatar ? (
-                            <img className="h-10 w-10 rounded-full object-cover\" src={user.avatar} alt={`${user.firstName} ${user.lastName}`} />
+                            <img className="h-10 w-10 rounded-full object-cover" src={user.avatar} alt={`${user.firstName} ${user.lastName}`} />
                           ) : (
                             <div className="h-10 w-10 rounded-full bg-primary-100 dark:bg-primary-900/30 flex items-center justify-center text-primary-600 dark:text-primary-400 font-semibold">
                               {user.firstName?.charAt(0) || ''}
