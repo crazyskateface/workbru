@@ -132,36 +132,49 @@ export async function getCurrentUser(): Promise<User | null> {
 }
 
 export async function updateUser(userId: string, userData: Partial<User>) {
-  // First update the user's metadata in auth
-  const { error: authError } = await supabaseAdmin.auth.admin.updateUserById(
-    userId,
-    {
-      email: userData.email,
-      user_metadata: {
-        first_name: userData.firstName,
-        last_name: userData.lastName
+  try {
+    // First update the user's metadata in auth.users
+    const { error: authError } = await supabaseAdmin.auth.admin.updateUserById(
+      userId,
+      {
+        email: userData.email,
+        user_metadata: {
+          first_name: userData.firstName,
+          last_name: userData.lastName
+        }
       }
+    );
+
+    if (authError) {
+      throw new Error(`Error updating auth user: ${authError.message}`);
     }
-  );
 
-  if (authError) {
-    throw new Error(`Error updating auth user: ${authError.message}`);
+    // Then update the profile in profiles table
+    const { data: profileData, error: profileError } = await supabase
+      .from('profiles')
+      .update({
+        first_name: userData.firstName,
+        last_name: userData.lastName,
+        role: userData.role,
+        email: userData.email
+      })
+      .eq('id', userId)
+      .select()
+      .single();
+
+    if (profileError) {
+      throw new Error(`Error updating profile: ${profileError.message}`);
+    }
+
+    return {
+      id: userId,
+      email: userData.email!,
+      firstName: userData.firstName,
+      lastName: userData.lastName,
+      role: userData.role || 'user',
+      avatar: profileData.avatar_url
+    };
+  } catch (error: any) {
+    throw new Error(`Failed to update user: ${error.message}`);
   }
-
-  // Then update the profile
-  const { error: profileError } = await supabase
-    .from('profiles')
-    .update({
-      first_name: userData.firstName,
-      last_name: userData.lastName,
-      role: userData.role,
-      email: userData.email
-    })
-    .eq('id', userId);
-
-  if (profileError) {
-    throw new Error(`Error updating profile: ${profileError.message}`);
-  }
-
-  return { error: null };
 }
