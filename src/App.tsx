@@ -45,7 +45,6 @@ function App() {
   useEffect(() => {
     if (!isLoading) {
       if (user) {
-        console.log('[App] handling redirection', user);
         const attemptedRoute = localStorage.getItem('attemptedRoute');
         const lastRoute = localStorage.getItem('lastRoute');
         
@@ -78,7 +77,7 @@ function App() {
     }
     
     if (requireAdmin && user.role !== 'admin') {
-      return <Navigate to="/app" replace />;
+      return <Navigate to="/app\" replace />;
     }
     
     return <>{children}</>;
