@@ -25,6 +25,7 @@ export const useAuthStore = create<AuthState>((set) => ({
       console.log('[AuthStore] Auth state changed:', event, session?.user?.email || 'null');
       
       if (event === 'SIGNED_OUT') {
+        console.log('[AuthStore] event: ',event);
         set({ user: null, isLoading: false });
         return;
       }
@@ -51,13 +52,14 @@ export const useAuthStore = create<AuthState>((set) => ({
             created_at: profile?.created_at,
             updated_at: profile?.updated_at
           };
-          
+          console.log('[AuthStore] setting user and isloading', user, false);
           set({ user, isLoading: false });
         } catch (error) {
           console.error('[AuthStore] Error fetching profile:', error);
           set({ user: null, isLoading: false });
         }
       } else {
+        console.log('[AuthStore] setting user to null for some reason');
         set({ user: null, isLoading: false });
       }
     });
@@ -67,6 +69,7 @@ export const useAuthStore = create<AuthState>((set) => ({
       console.log('[AuthStore] Initial session check:', session?.user?.email || 'null');
       
       if (!session?.user) {
+        console.log('[AuthStore] initial session setting to null');
         set({ user: null, isLoading: false });
       }
       // If there is a session, the onAuthStateChange handler above will handle it

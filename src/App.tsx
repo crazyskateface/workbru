@@ -32,19 +32,24 @@ function App() {
   useEffect(() => {
     const cleanup = setupAuthListener();
     return () => cleanup();
-  }, [setupAuthListener]);
+  }, []);
 
   // Save current route to localStorage when it changes
   useEffect(() => {
     if (user && location.pathname !== '/login' && location.pathname !== '/register') {
       localStorage.setItem('lastRoute', location.pathname + location.search);
     }
+    if (user) {
+      console.log('[App] user changed', user);
+    }
   }, [location, user]);
 
   // Handle navigation after auth state changes
   useEffect(() => {
     if (!isLoading) {
+      console.log('[App] : ', user)
       if (user) {
+        console.log('[App] user is here in useEffect', user);
         const attemptedRoute = localStorage.getItem('attemptedRoute');
         const lastRoute = localStorage.getItem('lastRoute');
         
