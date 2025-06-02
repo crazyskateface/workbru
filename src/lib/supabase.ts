@@ -107,7 +107,7 @@ export async function getCurrentUser(): Promise<User | null> {
   try {
     console.log('[getCurrentUser] Getting session...');
     const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-    
+    console.log('[getCurrentUser] got session', session);
     if (sessionError) {
       console.error('[getCurrentUser] Session error:', sessionError);
       return null;

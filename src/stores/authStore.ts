@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { User } from '../types';
-import { getCurrentUser, supabase } from '../lib/supabase';
+import { supabase } from '../lib/supabase';
 
 interface AuthState {
   user: User | null;
@@ -26,9 +26,8 @@ export const useAuthStore = create<AuthState>((set) => ({
     try {
       console.log('[AuthStore] Initializing auth...');
       set({ isLoading: true });
-      const user = await getCurrentUser();
-      console.log('[AuthStore] Initial user:', user?.email || 'null');
-      set({ user });
+      // Just check the session, let the listener handle user state
+      await supabase.auth.getSession();
     } catch (error) {
       console.error('[AuthStore] Error initializing auth:', error);
       set({ user: null });
@@ -42,41 +41,54 @@ export const useAuthStore = create<AuthState>((set) => ({
     
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       console.log('[AuthStore] Auth state changed:', event, session?.user?.email || 'null');
-      console.log('[AuthStore] Session exists:', !!session);
-      console.log('[AuthStore] User exists:', !!session?.user);
       
       set({ isLoading: true });
       
       if (session?.user) {
-        console.log('[AuthStore] Processing login with user...');
+        console.log('[AuthStore] User logged in, fetching profile directly...');
         
         try {
-          console.log('[AuthStore] Getting current user...');
-          const fullUser = await getCurrentUser();
-          console.log('[AuthStore] Got full user profile:', fullUser);
-          
-          if (fullUser) {
-            set({ user: fullUser, isLoading: false });
-            console.log('[AuthStore] User set in store:', fullUser.email);
-          } else {
-            throw new Error('getCurrentUser returned null');
+          // Fetch profile directly without calling getCurrentUser
+          const { data: profile, error: profileError } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', session.user.id)
+            .single();
+            
+          if (profileError) {
+            console.error('[AuthStore] Profile error:', profileError);
+            throw profileError;
           }
-        } catch (error) {
-          console.error('[AuthStore] Error getting full user, using fallback:', error);
           
-          // Fallback to basic user info from session
-          const basicUser = {
+          const user: User = {
             id: session.user.id,
             email: session.user.email!,
+            role: profile?.role || 'user',
+            firstName: profile?.first_name,
+            lastName: profile?.last_name,
+            avatar: profile?.avatar_url,
+            created_at: profile?.created_at,
+            updated_at: profile?.updated_at
+          };
+          
+          console.log('[AuthStore] Setting user from profile:', user);
+          set({ user, isLoading: false });
+          
+        } catch (error) {
+          console.error('[AuthStore] Error fetching profile, using basic user:', error);
+          
+          // Fallback to basic user info
+          const basicUser: User = {
+            id: session.user.id,
+            email: session.user.email!,
+            role: 'user',
             firstName: session.user.user_metadata?.first_name || '',
             lastName: session.user.user_metadata?.last_name || '',
-            role: 'user',
             avatar: null,
             created_at: session.user.created_at,
             updated_at: new Date().toISOString()
           };
           
-          console.log('[AuthStore] Setting fallback user:', basicUser);
           set({ user: basicUser, isLoading: false });
         }
       } else {
