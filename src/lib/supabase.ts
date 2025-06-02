@@ -150,8 +150,8 @@ export async function updateUser(userId: string, userData: Partial<User>) {
       .rpc('admin_update_user', {
         user_id: userId,
         user_email: userData.email,
-        first_name: userData.firstName,
-        last_name: userData.lastName,
+        p_first_name: userData.firstName,
+        p_last_name: userData.lastName,
         user_role: userData.role
       });
 
