@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { useAuthStore } from './stores/authStore';
 import { useAnalytics } from './hooks/useAnalytics';
 
@@ -24,11 +24,30 @@ import { ThemeProvider } from './contexts/ThemeContext';
 
 function App() {
   const { user, isLoading, initializeAuth } = useAuthStore();
+  const location = useLocation();
+  const navigate = useNavigate();
   useAnalytics();
 
   useEffect(() => {
     initializeAuth();
   }, [initializeAuth]);
+
+  // Save current route to localStorage when it changes
+  useEffect(() => {
+    if (user) {
+      localStorage.setItem('lastRoute', location.pathname + location.search);
+    }
+  }, [location, user]);
+
+  // Restore last route on initial load
+  useEffect(() => {
+    if (!isLoading && user) {
+      const lastRoute = localStorage.getItem('lastRoute');
+      if (lastRoute && location.pathname === '/') {
+        navigate(lastRoute, { replace: true });
+      }
+    }
+  }, [isLoading, user, navigate, location.pathname]);
 
   // Protected route component
   const ProtectedRoute = ({ children, requireAdmin = false }: { children: React.ReactNode, requireAdmin?: boolean }) => {
@@ -45,7 +64,7 @@ function App() {
     }
     
     if (requireAdmin && user.role !== 'admin') {
-      return <Navigate to="/app\" replace />;
+      return <Navigate to="/app" replace />;
     }
     
     return <>{children}</>;
@@ -56,13 +75,13 @@ function App() {
       <Routes>
         {/* Public routes */}
         <Route path="/" element={
-          user ? <Navigate to="/app\" replace /> : <LandingPage />
+          user ? <Navigate to="/app" replace /> : <LandingPage />
         } />
         <Route path="/login" element={
-          user ? <Navigate to="/app\" replace /> : <LoginPage />
+          user ? <Navigate to="/app" replace /> : <LoginPage />
         } />
         <Route path="/register" element={
-          user ? <Navigate to="/app\" replace /> : <RegisterPage />
+          user ? <Navigate to="/app" replace /> : <RegisterPage />
         } />
         
         {/* User routes */}
