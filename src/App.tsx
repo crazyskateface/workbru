@@ -23,15 +23,9 @@ import NotFoundPage from './pages/NotFoundPage';
 import { ThemeProvider } from './contexts/ThemeContext';
 
 function App() {
-  const { user, isLoading, initializeAuth } = useAuthStore();
+  const { user, isLoading /*initializeAuth*/ } = useAuthStore();
   const location = useLocation();
   useAnalytics();
-
-  useEffect(() => {
-    initializeAuth();
-    const unsubscribe = useAuthStore.getState().setupAuthListener();
-    return unsubscribe;
-  }, [initializeAuth]);
 
   useEffect(() => {
     console.log('[App] User state changed:', user?.email || 'null', 'isLoading:', isLoading);
