@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { useAuthStore } from './stores/authStore';
 import { useAnalytics } from './hooks/useAnalytics';
 
@@ -23,13 +23,38 @@ import NotFoundPage from './pages/NotFoundPage';
 import { ThemeProvider } from './contexts/ThemeContext';
 
 function App() {
-  const { user, isLoading /*initializeAuth*/ } = useAuthStore();
+  const { user, isLoading, setupAuthListener } = useAuthStore();
   const location = useLocation();
+  const navigate = useNavigate();
   useAnalytics();
 
+  // Set up auth listener on mount
   useEffect(() => {
-    console.log('[App] User state changed:', user?.email || 'null', 'isLoading:', isLoading);
-  }, [user, isLoading]);  
+    const cleanup = setupAuthListener();
+    return () => cleanup();
+  }, [setupAuthListener]);
+
+  // Save current route to localStorage when it changes
+  useEffect(() => {
+    if (user && location.pathname !== '/login' && location.pathname !== '/register') {
+      localStorage.setItem('lastRoute', location.pathname + location.search);
+    }
+  }, [location, user]);
+
+  // Restore last route on initial load
+  useEffect(() => {
+    if (!isLoading && user) {
+      const lastRoute = localStorage.getItem('lastRoute');
+      const attemptedRoute = localStorage.getItem('attemptedRoute');
+      
+      if (attemptedRoute) {
+        localStorage.removeItem('attemptedRoute');
+        navigate(attemptedRoute, { replace: true });
+      } else if (lastRoute && location.pathname === '/') {
+        navigate(lastRoute, { replace: true });
+      }
+    }
+  }, [isLoading, user, navigate, location.pathname]);
 
   // Protected route component
   const ProtectedRoute = ({ children, requireAdmin = false }: { children: React.ReactNode, requireAdmin?: boolean }) => {
@@ -42,13 +67,12 @@ function App() {
     }
     
     if (!user) {
-      console.log('[App] User is null, redirecting to login');
       localStorage.setItem('attemptedRoute', location.pathname + location.search);
       return <Navigate to="/login" replace />;
     }
     
     if (requireAdmin && user.role !== 'admin') {
-      return <Navigate to="/app\" replace />;
+      return <Navigate to="/app" replace />;
     }
     
     return <>{children}</>;
@@ -59,13 +83,13 @@ function App() {
       <Routes>
         {/* Public routes */}
         <Route path="/" element={
-          user ? <Navigate to="/app\" replace /> : <LandingPage />
+          user ? <Navigate to={localStorage.getItem('lastRoute') || '/app'} replace /> : <LandingPage />
         } />
         <Route path="/login" element={
-          user ? <Navigate to="/app\" replace /> : <LoginPage />
+          user ? <Navigate to={localStorage.getItem('lastRoute') || '/app'} replace /> : <LoginPage />
         } />
         <Route path="/register" element={
-          user ? <Navigate to="/app\" replace /> : <RegisterPage />
+          user ? <Navigate to={localStorage.getItem('lastRoute') || '/app'} replace /> : <RegisterPage />
         } />
         
         {/* User routes */}

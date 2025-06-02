@@ -7,7 +7,6 @@ interface AuthState {
   isLoading: boolean;
   setUser: (user: User | null) => void;
   setLoading: (loading: boolean) => void;
-  initializeAuth: () => Promise<void>;
   setupAuthListener: () => () => void;
 }
 
@@ -21,20 +20,6 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
   
   setLoading: (loading) => set({ isLoading: loading }),
-  
-  initializeAuth: async () => {
-    try {
-      console.log('[AuthStore] Initializing auth...');
-      set({ isLoading: true });
-      // Just check the session, let the listener handle user state
-      await supabase.auth.getSession();
-    } catch (error) {
-      console.error('[AuthStore] Error initializing auth:', error);
-      set({ user: null });
-    } finally {
-      set({ isLoading: false });
-    }
-  },
 
   setupAuthListener: () => {
     console.log('[AuthStore] Setting up auth listener');
@@ -48,7 +33,6 @@ export const useAuthStore = create<AuthState>((set) => ({
         console.log('[AuthStore] User logged in, fetching profile directly...');
         
         try {
-          // Fetch profile directly without calling getCurrentUser
           const { data: profile, error: profileError } = await supabase
             .from('profiles')
             .select('*')
@@ -77,7 +61,6 @@ export const useAuthStore = create<AuthState>((set) => ({
         } catch (error) {
           console.error('[AuthStore] Error fetching profile, using basic user:', error);
           
-          // Fallback to basic user info
           const basicUser: User = {
             id: session.user.id,
             email: session.user.email!,
