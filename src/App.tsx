@@ -56,7 +56,7 @@ function App() {
     
     if (requireAdmin && user.role !== 'admin') {
       console.log('[App] User not admin, redirecting to app');
-      return <Navigate to="/app" replace />;
+      return <Navigate to="/app\" replace />;
     }
     
     console.log('[App] Access granted to protected route');
@@ -69,13 +69,13 @@ function App() {
         <Routes>
           {/* Public routes */}
           <Route path="/" element={
-            user ? <Navigate to="/app" replace /> : <LandingPage />
+            user ? <Navigate to="/app\" replace /> : <LandingPage />
           } />
           <Route path="/login" element={
-            user ? <Navigate to="/app" replace /> : <LoginPage />
+            user ? <Navigate to="/app\" replace /> : <LoginPage />
           } />
           <Route path="/register" element={
-            user ? <Navigate to="/app" replace /> : <RegisterPage />
+            user ? <Navigate to="/app\" replace /> : <RegisterPage />
           } />
           
           {/* User routes */}
