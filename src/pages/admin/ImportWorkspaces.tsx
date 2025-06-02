@@ -28,6 +28,7 @@ interface ImportProgress {
 function ImportWorkspaces() {
   const [city, setCity] = useState('');
   const [importing, setImporting] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [progress, setProgress] = useState<ImportProgress | null>(null);
@@ -41,6 +42,7 @@ function ImportWorkspaces() {
 
   const loadImportSessions = async () => {
     try {
+      setRefreshing(true);
       const { data, error } = await supabase
         .from('import_sessions')
         .select('*')
@@ -51,6 +53,8 @@ function ImportWorkspaces() {
       setSessions(data || []);
     } catch (error) {
       console.error('Error loading import sessions:', error);
+    } finally {
+      setRefreshing(false);
     }
   };
 
@@ -126,6 +130,10 @@ function ImportWorkspaces() {
     } finally {
       setImporting(false);
     }
+  };
+
+  const handleRefresh = async () => {
+    await loadImportSessions();
   };
 
   return (
@@ -303,10 +311,11 @@ function ImportWorkspaces() {
         <div className="px-6 py-4 border-b border-gray-200 dark:border-dark-border flex items-center justify-between">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Import History</h2>
           <button
-            onClick={loadImportSessions}
-            className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white rounded-full hover:bg-gray-100 dark:hover:bg-dark-hover transition-colors duration-200"
+            onClick={handleRefresh}
+            disabled={refreshing}
+            className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white rounded-full hover:bg-gray-100 dark:hover:bg-dark-hover transition-colors duration-200 disabled:opacity-50"
           >
-            <RefreshCw className="h-5 w-5" />
+            <RefreshCw className={`h-5 w-5 ${refreshing ? 'animate-spin' : ''}`} />
           </button>
         </div>
         <div className="overflow-x-auto">
