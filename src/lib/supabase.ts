@@ -3,12 +3,16 @@ import { User } from '../types';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+const supabaseServiceKey = import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY;
 
 if (!supabaseUrl || !supabaseAnonKey) {
   throw new Error('Missing Supabase environment variables');
 }
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+
+// Create a separate admin client with service role key
+export const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 
 export async function signInWithEmail(email: string, password: string) {
   const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
@@ -125,4 +129,39 @@ export async function getCurrentUser(): Promise<User | null> {
     lastName: profile.last_name,
     avatar: profile.avatar_url,
   };
+}
+
+export async function updateUser(userId: string, userData: Partial<User>) {
+  // First update the user's metadata in auth
+  const { error: authError } = await supabaseAdmin.auth.admin.updateUserById(
+    userId,
+    {
+      email: userData.email,
+      user_metadata: {
+        first_name: userData.firstName,
+        last_name: userData.lastName
+      }
+    }
+  );
+
+  if (authError) {
+    throw new Error(`Error updating auth user: ${authError.message}`);
+  }
+
+  // Then update the profile
+  const { error: profileError } = await supabase
+    .from('profiles')
+    .update({
+      first_name: userData.firstName,
+      last_name: userData.lastName,
+      role: userData.role,
+      email: userData.email
+    })
+    .eq('id', userId);
+
+  if (profileError) {
+    throw new Error(`Error updating profile: ${profileError.message}`);
+  }
+
+  return { error: null };
 }
