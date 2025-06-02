@@ -20,18 +20,21 @@ const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
       try {
         if (event === 'SIGNED_OUT' || !session?.user) {
+          console.log('is this happening???');
           setUser(null);
           navigate('/login', { replace: true });
           return;
         }
 
+        console.log('wtf');
         // For SIGNED_IN and INITIAL_SESSION events, fetch the full profile
         const { data: profile, error: profileError } = await supabase
           .from('profiles')
           .select('*')
           .eq('id', session.user.id)
           .single();
-
+        console.log('[AuthProvider] Fetched full profile:', profile);
+        
         if (profileError) {
           console.error('[AuthProvider] Error fetching profile:', profileError);
           setUser(null);
@@ -50,6 +53,7 @@ const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           updated_at: profile.updated_at
         };
 
+        console.log('[AuthProvider] setting user', user);
         setUser(user);
 
         // Always redirect to /app after successful sign in

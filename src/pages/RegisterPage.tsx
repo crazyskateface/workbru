@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { Mail, Lock, UserPlus, Eye, EyeOff, User, Check, X } from 'lucide-react';
 import { signUpWithEmail } from '../lib/supabase';
 import anime from 'animejs';
@@ -21,7 +21,6 @@ const RegisterPage: React.FC = () => {
     hasNumber: false,
     hasSpecialChar: false,
   });
-  const navigate = useNavigate();
   
   useEffect(() => {
     // Animate form elements on mount
@@ -88,33 +87,18 @@ const RegisterPage: React.FC = () => {
       setLoading(true);
       setError(null);
       
-      const { data, error } = await signUpWithEmail(email, password, firstName, lastName);
+      const { error } = await signUpWithEmail(email, password, firstName, lastName);
       
       if (error) {
         throw error;
       }
+
+      // Auth listener will handle the redirect to /app
       
-      if (data) {
-        // Get the attempted route or default to /app
-        const attemptedRoute = localStorage.getItem('attemptedRoute') || '/app';
-        // Clear the attempted route
-        localStorage.removeItem('attemptedRoute');
-        
-        // Success animation before redirect
-        await anime({
-          targets: 'form',
-          opacity: [1, 0],
-          translateY: [0, -20],
-          easing: 'easeInOutQuad',
-          duration: 400
-        }).finished;
-        
-        // Navigate to the attempted route or default route
-        navigate(attemptedRoute, { replace: true });
-      }
     } catch (err: any) {
       console.error('Registration error:', err);
       setError(err.message || 'Failed to register. Please try again.');
+      setLoading(false);
       
       // Shake animation for error
       anime({
@@ -123,8 +107,6 @@ const RegisterPage: React.FC = () => {
         duration: 400,
         easing: 'easeInOutQuad'
       });
-    } finally {
-      setLoading(false);
     }
   };
   
