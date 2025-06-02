@@ -1,24 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Filter, Trash2, Eye, Edit, Mail, Plus, X, Check, Loader2 } from 'lucide-react';
-import { supabase, supabaseAdmin } from '../../lib/supabase';
+import { Search, Filter, Trash2, Eye, Edit, CheckCircle, XCircle, Mail, Plus } from 'lucide-react';
 import { User } from '../../types';
+import { supabase } from '../../lib/supabase';
 
 const AdminUsers: React.FC = () => {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [showFilters, setShowFilters] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [editForm, setEditForm] = useState({
-    firstName: '',
-    lastName: '',
-    role: 'user' as 'user' | 'admin'
-  });
-  const [error, setError] = useState<string | null>(null);
-  const [editLoading, setEditLoading] = useState(false);
-  const [success, setSuccess] = useState<string | null>(null);
   
   useEffect(() => {
     loadUsers();
@@ -27,115 +19,23 @@ const AdminUsers: React.FC = () => {
   const loadUsers = async () => {
     try {
       setLoading(true);
-      const { data: profiles, error } = await supabaseAdmin
+      setError(null);
+
+      const { data: profiles, error: profilesError } = await supabase
         .from('profiles')
         .select('*')
         .order('created_at', { ascending: false });
 
-      if (error) throw error;
+      if (profilesError) {
+        throw profilesError;
+      }
 
-      setUsers(profiles.map(profile => ({
-        id: profile.id,
-        email: profile.email,
-        firstName: profile.first_name,
-        lastName: profile.last_name,
-        avatar: profile.avatar_url,
-        role: profile.role as 'user' | 'admin',
-        createdAt: profile.created_at,
-      })));
-    } catch (error) {
-      console.error('Error loading users:', error);
-      setError('Failed to load users');
+      setUsers(profiles || []);
+    } catch (err: any) {
+      console.error('Error loading users:', err);
+      setError(err.message || 'Failed to load users');
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleEditClick = (user: User) => {
-    setSelectedUser(user);
-    setEditForm({
-      firstName: user.firstName || '',
-      lastName: user.lastName || '',
-      role: user.role
-    });
-    setIsEditModalOpen(true);
-  };
-
-  const handleEditSubmit = async () => {
-    if (!selectedUser) return;
-
-    try {
-      setEditLoading(true);
-      setError(null);
-
-      // First update the auth user metadata using the admin client
-      const { error: authError } = await supabaseAdmin.auth.admin.updateUserById(
-        selectedUser.id,
-        {
-          user_metadata: {
-            first_name: editForm.firstName,
-            last_name: editForm.lastName,
-            role: editForm.role
-          }
-        }
-      );
-
-      if (authError) throw authError;
-
-      // Then update the profile record using the admin client
-      const { error: profileError } = await supabaseAdmin
-        .from('profiles')
-        .update({
-          first_name: editForm.firstName,
-          last_name: editForm.lastName,
-          role: editForm.role,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', selectedUser.id);
-
-      if (profileError) throw profileError;
-
-      // Update the local state
-      setUsers(users.map(user => 
-        user.id === selectedUser.id 
-          ? { 
-              ...user, 
-              firstName: editForm.firstName,
-              lastName: editForm.lastName,
-              role: editForm.role
-            }
-          : user
-      ));
-
-      setIsEditModalOpen(false);
-      setSelectedUser(null);
-      setSuccess('User updated successfully');
-    } catch (error) {
-      console.error('Error updating user:', error);
-      setError('Failed to update user');
-    } finally {
-      setEditLoading(false);
-    }
-  };
-
-  const handleDeleteClick = (user: User) => {
-    setSelectedUser(user);
-    setIsDeleteModalOpen(true);
-  };
-  
-  const handleDeleteConfirm = async () => {
-    if (!selectedUser?.id) return;
-
-    try {
-      const { error } = await supabaseAdmin.auth.admin.deleteUser(selectedUser.id);
-      if (error) throw error;
-
-      setUsers(users.filter(u => u.id !== selectedUser.id));
-      setIsDeleteModalOpen(false);
-      setSelectedUser(null);
-    } catch (error) {
-      console.error('Error deleting user:', error);
-      setError('Failed to delete user');
     }
   };
   
@@ -149,6 +49,62 @@ const AdminUsers: React.FC = () => {
     );
   });
   
+  const handleDeleteClick = (user: User) => {
+    setSelectedUser(user);
+    setIsDeleteModalOpen(true);
+  };
+  
+  const handleDeleteConfirm = async () => {
+    if (selectedUser?.id) {
+      try {
+        const { error } = await supabase
+          .from('profiles')
+          .delete()
+          .eq('id', selectedUser.id);
+
+        if (error) throw error;
+
+        setUsers(users.filter(u => u.id !== selectedUser.id));
+        setIsDeleteModalOpen(false);
+        setSelectedUser(null);
+      } catch (error: any) {
+        console.error('Error deleting user:', error);
+      }
+    }
+  };
+
+  // Format date to a more readable format
+  const formatDate = (dateString: string | undefined) => {
+    if (!dateString) return 'N/A';
+    
+    const date = new Date(dateString);
+    return new Intl.DateTimeFormat('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+    }).format(date);
+  };
+  
+  if (error) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-dark-bg">
+        <div className="text-center">
+          <div className="mb-4 text-red-600 dark:text-red-400">
+            <XCircle className="h-12 w-12 mx-auto" />
+          </div>
+          <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-2">Error Loading Users</h2>
+          <p className="text-gray-600 dark:text-gray-400 mb-4">{error}</p>
+          <button
+            onClick={loadUsers}
+            className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors duration-200"
+          >
+            Try Again
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div>
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
@@ -224,6 +180,7 @@ const AdminUsers: React.FC = () => {
                   <option>Name (Z-A)</option>
                   <option>Newest First</option>
                   <option>Oldest First</option>
+                  <option>Last Login</option>
                 </select>
               </div>
             </div>
@@ -239,25 +196,13 @@ const AdminUsers: React.FC = () => {
           </div>
         )}
       </div>
-
-      {error && (
-        <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 rounded-lg">
-          {error}
-        </div>
-      )}
-
-      {success && (
-        <div className="mb-6 p-4 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 rounded-lg">
-          {success}
-        </div>
-      )}
       
       {/* Users table */}
       <div className="bg-white dark:bg-dark-card rounded-xl shadow-md overflow-hidden">
         {loading ? (
           <div className="flex items-center justify-center h-64">
             <div className="flex flex-col items-center">
-              <Loader2 className="w-8 h-8 text-primary-600 animate-spin" />
+              <div className="w-12 h-12 border-4 border-primary-200 border-t-primary-600 rounded-full animate-spin"></div>
               <p className="mt-4 text-gray-600 dark:text-gray-400">Loading users...</p>
             </div>
           </div>
@@ -285,6 +230,9 @@ const AdminUsers: React.FC = () => {
                   </th>
                   <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                     Joined
+                  </th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                    Last Login
                   </th>
                   <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                     Actions
@@ -327,17 +275,17 @@ const AdminUsers: React.FC = () => {
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 dark:text-gray-300">
-                      {new Date(user.createdAt).toLocaleDateString()}
+                      {formatDate(user.createdAt)}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 dark:text-gray-300">
+                      {formatDate(user.lastLogin)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                       <div className="flex justify-end space-x-2">
                         <button className="text-primary-600 hover:text-primary-900 dark:text-primary-400 dark:hover:text-primary-300">
                           <Eye className="h-5 w-5" />
                         </button>
-                        <button 
-                          onClick={() => handleEditClick(user)}
-                          className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300"
-                        >
+                        <button className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300">
                           <Edit className="h-5 w-5" />
                         </button>
                         <button 
@@ -354,77 +302,49 @@ const AdminUsers: React.FC = () => {
             </table>
           </div>
         )}
-      </div>
-      
-      {/* Edit Modal */}
-      {isEditModalOpen && selectedUser && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-          <div className="bg-white dark:bg-dark-card rounded-lg shadow-xl max-w-md w-full p-6">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Edit User</h3>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  First Name
-                </label>
-                <input
-                  type="text"
-                  value={editForm.firstName}
-                  onChange={(e) => setEditForm({ ...editForm, firstName: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-input text-gray-900 dark:text-white"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Last Name
-                </label>
-                <input
-                  type="text"
-                  value={editForm.lastName}
-                  onChange={(e) => setEditForm({ ...editForm, lastName: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-input text-gray-900 dark:text-white"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Role
-                </label>
-                <select
-                  value={editForm.role}
-                  onChange={(e) => setEditForm({ ...editForm, role: e.target.value as 'user' | 'admin' })}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-input text-gray-900 dark:text-white"
-                >
-                  <option value="user">User</option>
-                  <option value="admin">Admin</option>
-                </select>
-              </div>
+        
+        {/* Pagination */}
+        <div className="bg-white dark:bg-dark-card px-4 py-3 flex items-center justify-between border-t border-gray-200 dark:border-dark-border sm:px-6">
+          <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
+            <div>
+              <p className="text-sm text-gray-700 dark:text-gray-300">
+                Showing <span className="font-medium">1</span> to <span className="font-medium">{filteredUsers.length}</span> of{' '}
+                <span className="font-medium">{filteredUsers.length}</span> results
+              </p>
             </div>
-            <div className="mt-6 flex justify-end space-x-4">
-              <button
-                onClick={() => setIsEditModalOpen(false)}
-                className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-dark-input rounded-lg"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleEditSubmit}
-                disabled={editLoading}
-                className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 flex items-center"
-              >
-                {editLoading ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Saving...
-                  </>
-                ) : (
-                  'Save Changes'
-                )}
-              </button>
+            <div>
+              <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
+                <a
+                  href="#"
+                  className="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-sm font-medium text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-dark-input"
+                >
+                  <span className="sr-only">Previous</span>
+                  <svg className="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                    <path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" />
+                  </svg>
+                </a>
+                <a
+                  href="#"
+                  className="relative inline-flex items-center px-4 py-2 border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-dark-input"
+                >
+                  1
+                </a>
+                <a
+                  href="#"
+                  className="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-sm font-medium text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-dark-input"
+                >
+                  <span className="sr-only">Next</span>
+                  <svg className="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                    <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
+                  </svg>
+                </a>
+              </nav>
             </div>
           </div>
         </div>
-      )}
-
-      {/* Delete Confirmation Modal */}
+      </div>
+      
+      {/* Delete confirmation modal */}
       {isDeleteModalOpen && selectedUser && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
           <div className="bg-white dark:bg-dark-card rounded-lg shadow-xl max-w-md w-full p-6">
