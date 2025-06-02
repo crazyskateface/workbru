@@ -1,5 +1,5 @@
-import React, { useEffect } from 'react';
-import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
+import React from 'react';
+import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuthStore } from './stores/authStore';
 import { useAnalytics } from './hooks/useAnalytics';
 
@@ -19,47 +19,13 @@ import ImportWorkspaces from './pages/admin/ImportWorkspaces';
 import AdminUsers from './pages/admin/Users';
 import NotFoundPage from './pages/NotFoundPage';
 
-// Theme context
+// Theme context and Auth Provider
 import { ThemeProvider } from './contexts/ThemeContext';
+import AuthProvider from './contexts/AuthProvider';
 
 function App() {
-  const { user, isLoading, setupAuthListener } = useAuthStore();
-  const location = useLocation();
-  const navigate = useNavigate();
+  const { user, isLoading } = useAuthStore();
   useAnalytics();
-
-  // Set up auth listener on mount
-  useEffect(() => {
-    const cleanup = setupAuthListener();
-    return () => cleanup();
-  }, [setupAuthListener]);
-
-  // Save current route to localStorage when it changes
-  useEffect(() => {
-    if (user && location.pathname !== '/login' && location.pathname !== '/register') {
-      localStorage.setItem('lastRoute', location.pathname + location.search);
-    }
-  }, [location, user]);
-
-  // Handle navigation after auth state changes
-  useEffect(() => {
-    if (!isLoading) {
-      if (user) {
-        const attemptedRoute = localStorage.getItem('attemptedRoute');
-        const lastRoute = localStorage.getItem('lastRoute');
-        
-        if (attemptedRoute) {
-          localStorage.removeItem('attemptedRoute');
-          navigate(attemptedRoute, { replace: true });
-        } else if (lastRoute && location.pathname === '/') {
-          navigate(lastRoute, { replace: true });
-        }
-      } else if (location.pathname !== '/' && location.pathname !== '/login' && location.pathname !== '/register') {
-        localStorage.setItem('attemptedRoute', location.pathname + location.search);
-        navigate('/login', { replace: true });
-      }
-    }
-  }, [isLoading, user, navigate, location.pathname]);
 
   // Protected route component
   const ProtectedRoute = ({ children, requireAdmin = false }: { children: React.ReactNode, requireAdmin?: boolean }) => {
@@ -72,7 +38,6 @@ function App() {
     }
     
     if (!user) {
-      localStorage.setItem('attemptedRoute', location.pathname + location.search);
       return <Navigate to="/login" replace />;
     }
     
@@ -85,43 +50,45 @@ function App() {
 
   return (
     <ThemeProvider>
-      <Routes>
-        {/* Public routes */}
-        <Route path="/" element={
-          user ? <Navigate to={localStorage.getItem('lastRoute') || '/app'} replace /> : <LandingPage />
-        } />
-        <Route path="/login" element={
-          user ? <Navigate to={localStorage.getItem('lastRoute') || '/app'} replace /> : <LoginPage />
-        } />
-        <Route path="/register" element={
-          user ? <Navigate to={localStorage.getItem('lastRoute') || '/app'} replace /> : <RegisterPage />
-        } />
-        
-        {/* User routes */}
-        <Route path="/app" element={
-          <ProtectedRoute>
-            <MainLayout />
-          </ProtectedRoute>
-        }>
-          <Route index element={<HomePage />} />
-          <Route path="workspace/:id" element={<WorkspaceDetailsPage />} />
-        </Route>
-        
-        {/* Admin routes */}
-        <Route path="/admin" element={
-          <ProtectedRoute requireAdmin>
-            <AdminLayout />
-          </ProtectedRoute>
-        }>
-          <Route index element={<AdminDashboard />} />
-          <Route path="workspaces" element={<AdminWorkspaces />} />
-          <Route path="import" element={<ImportWorkspaces />} />
-          <Route path="users" element={<AdminUsers />} />
-        </Route>
-        
-        {/* 404 page */}
-        <Route path="*" element={<NotFoundPage />} />
-      </Routes>
+      <AuthProvider>
+        <Routes>
+          {/* Public routes */}
+          <Route path="/" element={
+            user ? <Navigate to="/app" replace /> : <LandingPage />
+          } />
+          <Route path="/login" element={
+            user ? <Navigate to="/app" replace /> : <LoginPage />
+          } />
+          <Route path="/register" element={
+            user ? <Navigate to="/app" replace /> : <RegisterPage />
+          } />
+          
+          {/* User routes */}
+          <Route path="/app" element={
+            <ProtectedRoute>
+              <MainLayout />
+            </ProtectedRoute>
+          }>
+            <Route index element={<HomePage />} />
+            <Route path="workspace/:id" element={<WorkspaceDetailsPage />} />
+          </Route>
+          
+          {/* Admin routes */}
+          <Route path="/admin" element={
+            <ProtectedRoute requireAdmin>
+              <AdminLayout />
+            </ProtectedRoute>
+          }>
+            <Route index element={<AdminDashboard />} />
+            <Route path="workspaces" element={<AdminWorkspaces />} />
+            <Route path="import" element={<ImportWorkspaces />} />
+            <Route path="users" element={<AdminUsers />} />
+          </Route>
+          
+          {/* 404 page */}
+          <Route path="*" element={<NotFoundPage />} />
+        </Routes>
+      </AuthProvider>
     </ThemeProvider>
   );
 }
