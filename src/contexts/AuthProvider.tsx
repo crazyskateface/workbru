@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
 import { supabase } from '../lib/supabase';
@@ -11,66 +11,82 @@ const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const { setUser, setLoading } = useAuthStore();
   const navigate = useNavigate();
 
+  const authListenerAlreadySetupRef = useRef(false);
+  const authSubscriptionRef = useRef<{ unsubscribe: () => void } | null>(null);
+
   useEffect(() => {
     console.log('[AuthProvider] Setting up auth listener');
-    setLoading(true);
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log('[AuthProvider] Auth state changed:', event, session?.user?.email);
-
-      try {
-        if (event === 'SIGNED_OUT' || !session?.user) {
-          console.log('is this happening???');
+    if (authListenerAlreadySetupRef.current === false) {
+      
+    
+      authListenerAlreadySetupRef.current = true;
+      setLoading(true);
+  
+      const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+        console.log('[AuthProvider] Auth state changed:', event, session?.user?.email);
+    
+        try {
+          if (event === 'SIGNED_OUT' || !session?.user) {
+            console.log('is this happening???');
+            setUser(null);
+            navigate('/login', { replace: true });
+            return;
+          }
+  
+          console.log('wtf');
+          // For SIGNED_IN and INITIAL_SESSION events, fetch the full profile
+          const { data: profile, error: profileError } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', session.user.id)
+            .single();
+          console.log('[AuthProvider] Fetched full profile:', profile);
+          
+          if (profileError) {
+            console.error('[AuthProvider] Error fetching profile:', profileError);
+            setUser(null);
+            navigate('/login', { replace: true });
+            return;
+          }
+  
+          const user = {
+            id: session.user.id,
+            email: session.user.email!,
+            role: profile.role || 'user',
+            firstName: profile.first_name,
+            lastName: profile.last_name,
+            avatar: profile.avatar_url,
+            created_at: profile.created_at,
+            updated_at: profile.updated_at
+          };
+  
+          console.log('[AuthProvider] setting user', user);
+          setUser(user);
+  
+          // Always redirect to /app after successful sign in
+          if (event === 'SIGNED_IN') {
+            navigate('/app', { replace: true });
+          }
+          
+        } catch (error) {
+          console.error('[AuthProvider] Error in auth state change:', error);
           setUser(null);
-          navigate('/login', { replace: true });
-          return;
+        } finally {
+          setLoading(false);
         }
+      });
 
-        console.log('wtf');
-        // For SIGNED_IN and INITIAL_SESSION events, fetch the full profile
-        const { data: profile, error: profileError } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', session.user.id)
-          .single();
-        console.log('[AuthProvider] Fetched full profile:', profile);
-        
-        if (profileError) {
-          console.error('[AuthProvider] Error fetching profile:', profileError);
-          setUser(null);
-          navigate('/login', { replace: true });
-          return;
-        }
-
-        const user = {
-          id: session.user.id,
-          email: session.user.email!,
-          role: profile.role || 'user',
-          firstName: profile.first_name,
-          lastName: profile.last_name,
-          avatar: profile.avatar_url,
-          created_at: profile.created_at,
-          updated_at: profile.updated_at
-        };
-
-        console.log('[AuthProvider] setting user', user);
-        setUser(user);
-
-        // Always redirect to /app after successful sign in
-        if (event === 'SIGNED_IN') {
-          navigate('/app', { replace: true });
-        }
-      } catch (error) {
-        console.error('[AuthProvider] Error in auth state change:', error);
-        setUser(null);
-      } finally {
-        setLoading(false);
-      }
-    });
+      // Store the subscription in the ref
+      authSubscriptionRef.current = subscription;
+    } // if statement authalready === false 
 
     return () => {
-      console.log('[AuthProvider] Cleaning up auth listener');
-      subscription.unsubscribe();
+      if (authListenerAlreadySetupRef.current === true) {
+        console.log('[AuthProvider] Cleaning up auth listener');
+        authSubscriptionRef.current?.unsubscribe();
+        authSubscriptionRef.current = null;
+        authListenerAlreadySetupRef.current = false;
+      }
     };
   }, [setUser, setLoading, navigate]);
 
