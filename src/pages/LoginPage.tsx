@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { Mail, Lock, LogIn, Eye, EyeOff } from 'lucide-react';
 import { signInWithEmail } from '../lib/supabase';
 import anime from 'animejs';
@@ -10,7 +10,6 @@ const LoginPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
-  const navigate = useNavigate();
   
   useEffect(() => {
     // Animate form elements on mount
@@ -47,26 +46,15 @@ const LoginPage: React.FC = () => {
       setError(null);
       
       console.log('Calling signInWithEmail');
-      const { data, error } = await signInWithEmail(email, password);
+      const { error } = await signInWithEmail(email, password);
       
       if (error) {
         throw error;
       }
+
+      // Success! App.tsx will handle the redirect automatically
+      console.log('Login successful');
       
-      if (data) {
-        console.log('Login successful, preparing to redirect');
-        
-        // Get the attempted route or default to /app
-        const attemptedRoute = localStorage.getItem('attemptedRoute');
-        console.log('Attempted route:', attemptedRoute);
-        
-        // Clear the attempted route
-        localStorage.removeItem('attemptedRoute');
-        
-        // Immediate redirect without animation
-        console.log('Redirecting to:', attemptedRoute || '/app');
-        navigate(attemptedRoute || '/app', { replace: true });
-      }
     } catch (err: any) {
       console.error('Login error:', err);
       setError(err.message || 'Failed to login. Please check your credentials.');

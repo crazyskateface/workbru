@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from './stores/authStore';
 import { useAnalytics } from './hooks/useAnalytics';
 
@@ -25,33 +25,11 @@ import { ThemeProvider } from './contexts/ThemeContext';
 function App() {
   const { user, isLoading, initializeAuth } = useAuthStore();
   const location = useLocation();
-  const navigate = useNavigate();
   useAnalytics();
 
   useEffect(() => {
     initializeAuth();
   }, [initializeAuth]);
-
-  // Save current route to localStorage when it changes
-  useEffect(() => {
-    // Only save route if user is logged in and not on auth or admin pages
-    if (user && 
-        !location.pathname.startsWith('/admin') && 
-        !['/login', '/register', '/'].includes(location.pathname)) {
-      localStorage.setItem('lastRoute', location.pathname + location.search);
-    }
-  }, [location, user]);
-
-  // Restore last route on initial auth
-  useEffect(() => {
-    if (!isLoading && user) {
-      const lastRoute = localStorage.getItem('lastRoute');
-      // Only restore route if coming from landing or auth pages
-      if (lastRoute && ['/', '/login', '/register'].includes(location.pathname)) {
-        navigate(lastRoute, { replace: true });
-      }
-    }
-  }, [isLoading, user, navigate, location.pathname]);
 
   // Protected route component
   const ProtectedRoute = ({ children, requireAdmin = false }: { children: React.ReactNode, requireAdmin?: boolean }) => {
