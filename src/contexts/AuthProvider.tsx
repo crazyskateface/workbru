@@ -1,105 +1,115 @@
-import React, { useEffect, useRef } from 'react';
+import React from 'react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
 import { supabase } from '../lib/supabase';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { User } from '../types';
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 1000 * 60 * 5, // 5 minutes
+      cacheTime: 1000 * 60 * 30, // 30 minutes
+      retry: 3,
+      retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
+    },
+  },
+});
 
 interface AuthProviderProps {
   children: React.ReactNode;
 }
 
-const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
-  const { setUser, setLoading } = useAuthStore();
+const AuthStateManager: React.FC = () => {
   const navigate = useNavigate();
-  const authSubscriptionRef = useRef<{ unsubscribe: () => void } | null>(null);
+  const { setUser, setLoading } = useAuthStore();
+  const queryClient = useQueryClient();
 
-  useEffect(() => {
-    console.log('[AuthProvider] Setting up auth listener');
-    setLoading(true);
-
-    const setupAuthListener = async () => {
+  // Query for auth state
+  useQuery({
+    queryKey: ['auth'],
+    queryFn: async () => {
       try {
-        // Clean up any existing subscription
-        if (authSubscriptionRef.current) {
-          authSubscriptionRef.current.unsubscribe();
+        setLoading(true);
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+        
+        if (sessionError || !session?.user) {
+          return null;
         }
 
-        // Set up new subscription
-        const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-          console.log('[AuthProvider] Auth state changed:', event, session?.user?.email);
+        const { data: profile, error: profileError } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', session.user.id)
+          .single();
 
-          try {
-            if (event === 'SIGNED_OUT' || !session?.user) {
-              console.log('[AuthProvider] User signed out or no session');
-              setUser(null);
-              navigate('/', { replace: true });
-              return;
-            }
+        if (profileError || !profile) {
+          throw profileError || new Error('Profile not found');
+        }
 
-            // For SIGNED_IN and INITIAL_SESSION events, fetch the full profile
-            const { data: profile, error: profileError } = await supabase
-              .from('profiles')
-              .select('*')
-              .eq('id', session.user.id)
-              .single();
+        const user: User = {
+          id: session.user.id,
+          email: session.user.email!,
+          role: profile.role || 'user',
+          firstName: profile.first_name,
+          lastName: profile.last_name,
+          avatar: profile.avatar_url,
+          created_at: profile.created_at,
+          updated_at: profile.updated_at
+        };
 
-            console.log('[AuthProvider] Fetched profile:', profile);
-
-            if (profileError) {
-              console.error('[AuthProvider] Error fetching profile:', profileError);
-              setUser(null);
-              navigate('/login', { replace: true });
-              return;
-            }
-
-            const user = {
-              id: session.user.id,
-              email: session.user.email!,
-              role: profile.role || 'user',
-              firstName: profile.first_name,
-              lastName: profile.last_name,
-              avatar: profile.avatar_url,
-              created_at: profile.created_at,
-              updated_at: profile.updated_at
-            };
-
-            console.log('[AuthProvider] Setting user:', user);
-            setUser(user);
-
-            // Always redirect to /app after successful sign in
-            if (event === 'SIGNED_IN') {
-              navigate('/app', { replace: true });
-            }
-
-          } catch (error) {
-            console.error('[AuthProvider] Error in auth state change:', error);
-            setUser(null);
-          } finally {
-            setLoading(false);
-          }
-        });
-
-        // Store the subscription reference
-        authSubscriptionRef.current = subscription;
-
+        return user;
       } catch (error) {
-        console.error('[AuthProvider] Error setting up auth listener:', error);
+        console.error('[Auth] Error fetching auth state:', error);
+        return null;
+      } finally {
         setLoading(false);
       }
-    };
-
-    setupAuthListener();
-
-    // Cleanup function
-    return () => {
-      console.log('[AuthProvider] Cleaning up auth listener');
-      if (authSubscriptionRef.current) {
-        authSubscriptionRef.current.unsubscribe();
-        authSubscriptionRef.current = null;
+    },
+    onSuccess: (user) => {
+      setUser(user);
+      if (!user) {
+        navigate('/', { replace: true });
       }
-    };
-  }, [setUser, setLoading, navigate]);
+    },
+  });
 
-  return <>{children}</>;
+  // Subscribe to auth changes
+  React.useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log('[Auth] Auth state changed:', event, session?.user?.email);
+
+      if (event === 'SIGNED_OUT') {
+        setUser(null);
+        queryClient.setQueryData(['auth'], null);
+        navigate('/', { replace: true });
+        return;
+      }
+
+      if (event === 'SIGNED_IN') {
+        // Invalidate and refetch auth query
+        await queryClient.invalidateQueries({ queryKey: ['auth'] });
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [queryClient, setUser, navigate]);
+
+  return null;
+};
+
+const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <AuthStateManager />
+      {children}
+      <ReactQueryDevtools />
+    </QueryClientProvider>
+  );
 };
 
 export default AuthProvider;
