@@ -45,6 +45,7 @@ function App() {
   useEffect(() => {
     if (!isLoading) {
       if (user) {
+        console.log('[App] handling redirection', user);
         const attemptedRoute = localStorage.getItem('attemptedRoute');
         const lastRoute = localStorage.getItem('lastRoute');
         
