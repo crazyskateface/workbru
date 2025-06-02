@@ -77,7 +77,7 @@ function App() {
     }
     
     if (requireAdmin && user.role !== 'admin') {
-      return <Navigate to="/app\" replace />;
+      return <Navigate to="/app" replace />;
     }
     
     return <>{children}</>;
