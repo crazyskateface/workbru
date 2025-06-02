@@ -145,8 +145,8 @@ export async function updateUser(userId: string, userData: Partial<User>) {
       }
     }
 
-    // Then update the profile in profiles table
-    const { data: profileData, error: profileError } = await supabase
+    // Use supabaseAdmin instead of supabase to bypass RLS policies
+    const { data: profileData, error: profileError } = await supabaseAdmin
       .from('profiles')
       .update({
         first_name: userData.firstName,
@@ -155,7 +155,7 @@ export async function updateUser(userId: string, userData: Partial<User>) {
       })
       .eq('id', userId)
       .select()
-      .maybeSingle();
+      .single();
 
     if (profileError) {
       throw new Error(`Error updating profile: ${profileError.message}`);
