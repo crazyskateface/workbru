@@ -52,6 +52,11 @@ const LoginPage: React.FC = () => {
       }
       
       if (data) {
+        // Get the attempted route or default to /app
+        const attemptedRoute = localStorage.getItem('attemptedRoute') || '/app';
+        // Clear the attempted route
+        localStorage.removeItem('attemptedRoute');
+        
         // Success animation before redirect
         await anime({
           targets: 'form',
@@ -61,8 +66,8 @@ const LoginPage: React.FC = () => {
           duration: 400
         }).finished;
         
-        // Ensure navigation happens after animation
-        navigate('/app', { replace: true });
+        // Navigate to the attempted route or default route
+        navigate(attemptedRoute, { replace: true });
       }
     } catch (err: any) {
       console.error('Login error:', err);
