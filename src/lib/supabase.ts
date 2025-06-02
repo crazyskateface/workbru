@@ -104,31 +104,58 @@ export async function signOut() {
 }
 
 export async function getCurrentUser(): Promise<User | null> {
-  const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-  
-  if (sessionError || !session?.user) {
+  try {
+    console.log('[getCurrentUser] Getting session...');
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+    
+    if (sessionError) {
+      console.error('[getCurrentUser] Session error:', sessionError);
+      return null;
+    }
+
+    if (!session?.user) {
+      console.log('[getCurrentUser] No session or user');
+      return null;
+    }
+
+    console.log('[getCurrentUser] Got session, fetching profile...');
+    
+    // Fetch user profile data including role
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', session.user.id)
+      .single();
+
+    if (profileError) {
+      console.error('[getCurrentUser] Profile error:', profileError);
+      return null;
+    }
+
+    if (!profile) {
+      console.log('[getCurrentUser] No profile found');
+      return null;
+    }
+
+    console.log('[getCurrentUser] Profile found:', profile);
+
+    const user: User = {
+      id: session.user.id,
+      email: session.user.email!,
+      role: profile.role || 'user',
+      firstName: profile.first_name,
+      lastName: profile.last_name,
+      avatar: profile.avatar_url,
+      created_at: profile.created_at,
+      updated_at: profile.updated_at
+    };
+
+    console.log('[getCurrentUser] Returning user:', user);
+    return user;
+  } catch (error) {
+    console.error('[getCurrentUser] Unexpected error:', error);
     return null;
   }
-
-  // Fetch user profile data including role
-  const { data: profile, error: profileError } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('id', session.user.id)
-    .single();
-
-  if (profileError || !profile) {
-    return null;
-  }
-
-  return {
-    id: session.user.id,
-    email: session.user.email!,
-    role: profile.role || 'user',
-    firstName: profile.first_name,
-    lastName: profile.last_name,
-    avatar: profile.avatar_url,
-  };
 }
 
 export async function updateUser(userId: string, userData: Partial<User>) {
