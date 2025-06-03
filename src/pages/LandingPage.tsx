@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { MapPin, ChevronRight, Mail, ArrowRight } from 'lucide-react';
+import { MapPin, ChevronRight, Mail, ArrowRight, CheckCircle } from 'lucide-react';
 import Navbar from '../components/ui/Navbar';
 import Footer from '../components/ui/Footer';
 import anime from 'animejs';
