@@ -5,7 +5,7 @@ const PICA_API_KEY = Deno.env.get('PICA_API_KEY');
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-client-info',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-client-info, apikey',
 };
 
 async function addToPica(email: string) {
