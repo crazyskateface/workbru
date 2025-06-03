@@ -1,7 +1,6 @@
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 
 const PICA_API_KEY = Deno.env.get('PICA_API_KEY');
-const HUBSPOT_API_KEY = Deno.env.get('HUBSPOT_API_KEY');
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -20,37 +19,20 @@ async function addToPica(email: string) {
       'Authorization': `Bearer ${PICA_API_KEY}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ email }),
-  });
-
-  if (!response.ok) {
-    throw new Error(`Pica API error: ${response.status} ${response.statusText}`);
-  }
-
-  return response.json();
-}
-
-async function addToHubSpot(email: string) {
-  if (!HUBSPOT_API_KEY) {
-    throw new Error('HubSpot API key not configured');
-  }
-
-  const response = await fetch('https://api.hubapi.com/contacts/v1/contact/', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${HUBSPOT_API_KEY}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      properties: [
-        { property: 'email', value: email },
-        { property: 'source', value: 'Workbru Waitlist' },
-      ],
+    body: JSON.stringify({ 
+      email,
+      source: 'Workbru Waitlist',
+      tags: ['waitlist', 'pre-launch']
     }),
   });
 
   if (!response.ok) {
-    throw new Error(`HubSpot API error: ${response.status} ${response.statusText}`);
+    const errorData = await response.json().catch(() => null);
+    throw new Error(
+      `Pica API error: ${response.status} ${response.statusText}${
+        errorData ? ` - ${JSON.stringify(errorData)}` : ''
+      }`
+    );
   }
 
   return response.json();
@@ -75,17 +57,24 @@ serve(async (req) => {
       );
     }
 
-    // Add to both services in parallel
-    const [picaResult, hubspotResult] = await Promise.all([
-      addToPica(email),
-      addToHubSpot(email),
-    ]);
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return new Response(
+        JSON.stringify({ error: 'Invalid email format' }),
+        { 
+          status: 400, 
+          headers: { 'Content-Type': 'application/json', ...corsHeaders } 
+        }
+      );
+    }
+
+    const result = await addToPica(email);
 
     return new Response(
       JSON.stringify({ 
         message: 'Successfully subscribed to waitlist',
-        pica: picaResult,
-        hubspot: hubspotResult,
+        data: result
       }),
       { 
         headers: { 'Content-Type': 'application/json', ...corsHeaders } 
