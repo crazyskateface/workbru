@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { MapPin, ChevronRight, Mail, ArrowRight, CheckCircle } from 'lucide-react';
 import Navbar from '../components/ui/Navbar';
 import Footer from '../components/ui/Footer';
+import { addToPica } from '../lib/pica';
 import anime from 'animejs';
 
 const LandingPage: React.FC = () => {
@@ -38,17 +39,7 @@ const LandingPage: React.FC = () => {
       setLoading(true);
       setError(null);
 
-      const response = await fetch('/api/subscribe-email', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to subscribe');
-      }
+      await addToPica(email);
 
       setSuccess(true);
       setEmail('');
