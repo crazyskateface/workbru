@@ -12,8 +12,10 @@ const queryClient = new QueryClient({
     queries: {
       staleTime: 1000 * 60 * 5, // 5 minutes
       cacheTime: 1000 * 60 * 30, // 30 minutes
-      retry: 3,
-      retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
+      retry: 2,
+      retryDelay: 1000,
+      refetchOnWindowFocus: false,
+      refetchOnMount: true, // Always refetch on mount
     },
   },
 });
@@ -25,109 +27,141 @@ interface AuthProviderProps {
 const AuthStateManager: React.FC = () => {
   const navigate = useNavigate();
   const { setUser, setLoading } = useAuthStore();
-  const queryClient = useQueryClient();
+
+  // add a state to force refetch
+  const [authKey, setAuthKey] = React.useState(0);
 
   // Query for auth state
-  useQuery({
-    queryKey: ['auth'],
+  const { data: user, isLoading, error, refetch } = useQuery({
+    queryKey: ['auth', authKey], // Include authKey to force refetch
     queryFn: async () => {
       console.log('[AuthProvider] Starting auth state fetch');
-      try {
-        setLoading(true);
-        console.log('[AuthProvider] Getting session...');
-        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      
         
-        console.log('[AuthProvider] Session result:', { 
-          hasSession: !!session, 
-          hasUser: !!session?.user,
-          error: sessionError
-        });
+        try {
+          console.log('[AuthProvider] Getting session...');
+          const { data: { session }, error: sessionError } = await supabase.auth.getSession();
 
-        if (sessionError || !session?.user) {
-          console.log('[AuthProvider] No valid session found');
-          return null;
-        }
+          if (sessionError) {
+            console.log('[AuthProvider] No valid session found');
+            throw sessionError;
+          }
 
-        console.log('[AuthProvider] Fetching profile for user:', session.user.id);
-        const { data: profile, error: profileError } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', session.user.id)
-          .single();
+          if (!session?.user) {
+            console.log('[AuthProvider] No valid session found');
+            return null;
+          }
 
-        console.log('[AuthProvider] Profile fetch result:', { 
-          hasProfile: !!profile, 
-          error: profileError 
-        });
+          console.log('[AuthProvider] Fetching profile for user:', session.user.id);
+          const { data: profile, error: profileError } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', session.user.id)
+            .single();
 
-        if (profileError || !profile) {
-          console.error('[AuthProvider] Profile error:', profileError || 'Profile not found');
-          throw profileError || new Error('Profile not found');
-        }
+          if (profileError || !profile) {
+            console.error('[AuthProvider] Profile error:', profileError || 'Profile not found');
+            // if profile doesn't exist. create a basic user object from session data
+            // this handles the case where user just signed up and profile hasn't been created yet
+            const basicUser: User = {
+              id: session.user.id,
+              email: session.user.email!,
+              role: 'user', // default role
+              firstName: session.user.user_metadata?.firstName || null, 
+              lastName: session.user.user_metadata?.lastName || null, 
+              avatar: session.user.user_metadata?.avatar_url || null, 
+              created_at: session.user.created_at,
+              updated_at: session.user.updated_at || session.user.created_at
+            };
 
-        const user: User = {
-          id: session.user.id,
-          email: session.user.email!,
-          role: profile.role || 'user',
-          firstName: profile.first_name,
-          lastName: profile.last_name,
-          avatar: profile.avatar_url,
-          created_at: profile.created_at,
-          updated_at: profile.updated_at
-        };
+            console.log('[AuthProvider] Using basic user data from session:', basicUser);
+            return basicUser;
+          }
 
-        console.log('[AuthProvider] Auth state fetch complete:', user);
-        return user;
+          const user: User = {
+            id: session.user.id,
+            email: session.user.email!,
+            role: profile.role || 'user',
+            firstName: profile.first_name,
+            lastName: profile.last_name,
+            avatar: profile.avatar_url,
+            created_at: profile.created_at,
+            updated_at: profile.updated_at
+          };
+
+          console.log('[AuthProvider] Auth state fetch complete:', user);
+          return user;
       } catch (error) {
-        console.error('[AuthProvider] Error in auth state fetch:', error);
-        return null;
-      } finally {
-        setLoading(false);
-        console.log('[AuthProvider] Auth state fetch finished');
+        console.error('[AuthPovider] Error in auth state fetch:', error);
+        throw error;
       }
     },
-    onSuccess: (user) => {
-      console.log('[AuthProvider] Auth query success, user:', user);
-      setUser(user);
-      if (!user) {
-        console.log('[AuthProvider] No user, navigating to home');
-        navigate('/', { replace: true });
-      }
-    },
-    onError: (error) => {
-      console.error('[AuthProvider] Auth query error:', error);
-    }
+    // Key addition: Enable background refetching
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: false,
   });
 
-  // Subscribe to auth changes
+  // Subscribe to auth state changes
   React.useEffect(() => {
-    console.log('[AuthProvider] Setting up auth subscription');
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log('[AuthProvider] Auth state changed:', { 
-        event, 
-        email: session?.user?.email,
-        userId: session?.user?.id 
-      });
+    console.log('[AuthProvider] Setting up auth state listener');
 
-      if (event === 'SIGNED_OUT') {
-        console.log('[AuthProvider] User signed out, clearing state');
-        setUser(null);
-        queryClient.setQueryData(['auth'], null);
-        navigate('/', { replace: true });
-        return;
-      }
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log('[AuthProvider] Auth state changed:', event, session?.user?.id);
 
-      if (event === 'SIGNED_IN') {
-        console.log('[AuthProvider] User signed in, invalidating auth query');
-        await queryClient.invalidateQueries({ queryKey: ['auth'] });
-      }
+        // For SIGNED_OUT, immediately clear the user before invalidating queries
+        if ( event === 'SIGNED_OUT') {
+          console.log('[AuthProvider] Signing out - clearing user state');
+          setUser(null);
+          setLoading(false);
+          // clear the query cache
+          queryClient.setQueryData(['auth'], null);
+          navigate('/');
+          return;
+        }
+        if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+          console.log('[AuthProvider] User signed in, forcing auth query refetch');
+          
+            console.log('[AuthProvider] Auth event, invalidating query');
+            // await queryClient.invalidateQueries({ queryKey: ['auth'] });
+            setAuthKey(prev => prev + 1); // Increment authKey to force refetch
+            // const result = await refetch();
+        }
     });
 
     return () => {
-      console.log('[AuthProvider] Cleaning up auth subscription');
-      subscription.unsubscribe();
+      console.log('[AuthProvider] Cleaning up auth state listener');
+      subscription?.unsubscribe();
     };
-  }, [queryClient, setUser, navigate]);
+  }, []);
+
+  // Update auth store when query state changes
+  React.useEffect(() => {
+    console.log('[AuthProvider] Query state changed:', { 
+      hasUser: !!user, 
+      isLoading, 
+      hasError: !!error,
+      authKey
+    });
+    setUser(user || null);
+    setLoading(isLoading);
+  }, [user, isLoading, error, setUser, setLoading, authKey]);
+
+    //Handle navigation separately to avoid infinite loops
+  React.useEffect(() => {
+    if (!isLoading && !error) {
+      const currentPath = window.location.pathname;
+
+      if (user && (currentPath === '/login' || currentPath === '/signup' || currentPath === '/')) {
+        console.log('[AuthProvider] User authenticated, redirecting to /app');
+        navigate('/app');
+      } else if (!user && currentPath.startsWith('/app')) {
+        console.log('[AuthProvider] User not authenticated, redirecting to /');
+        navigate('/');
+      }
+    }
+  }, [user, isLoading, error, navigate]);
 
   return null;
 };
