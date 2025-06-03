@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { MapPin, Search, Filter, Plus, Eye, Edit, Trash2 } from 'lucide-react';
-import { supabase } from '../../lib/supabase';
+import { supabase, supabaseAdmin } from '../../lib/supabase';
 import type { Workspace } from '../../types';
 
 function AdminWorkspaces() {
@@ -10,6 +10,8 @@ function AdminWorkspaces() {
   const [showFilters, setShowFilters] = useState(false);
   const [selectedWorkspace, setSelectedWorkspace] = useState<Workspace | null>(null);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     loadWorkspaces();
@@ -18,6 +20,7 @@ function AdminWorkspaces() {
   const loadWorkspaces = async () => {
     try {
       setLoading(true);
+      setError(null);
       const { data, error } = await supabase
         .from('workspaces')
         .select('*')
@@ -25,8 +28,9 @@ function AdminWorkspaces() {
 
       if (error) throw error;
       setWorkspaces(data || []);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error loading workspaces:', error);
+      setError('Failed to load workspaces. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -41,18 +45,26 @@ function AdminWorkspaces() {
     if (!selectedWorkspace?.id) return;
 
     try {
-      const { error } = await supabase
+      setDeleteLoading(true);
+      setError(null);
+
+      // Use supabaseAdmin to bypass RLS
+      const { error } = await supabaseAdmin
         .from('workspaces')
         .delete()
         .eq('id', selectedWorkspace.id);
 
       if (error) throw error;
 
+      // Update local state
       setWorkspaces(workspaces.filter(w => w.id !== selectedWorkspace.id));
       setIsDeleteModalOpen(false);
       setSelectedWorkspace(null);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error deleting workspace:', error);
+      setError('Failed to delete workspace. Please try again.');
+    } finally {
+      setDeleteLoading(false);
     }
   };
 
@@ -67,7 +79,12 @@ function AdminWorkspaces() {
   return (
     <div className="p-6">
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Workspaces</h1>
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Workspaces</h1>
+          {error && (
+            <p className="mt-2 text-sm text-red-600 dark:text-red-400">{error}</p>
+          )}
+        </div>
         <button className="inline-flex items-center px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors duration-200">
           <Plus className="h-5 w-5 mr-2" />
           Add Workspace
@@ -166,15 +183,24 @@ function AdminWorkspaces() {
             <div className="flex justify-end gap-4">
               <button
                 onClick={() => setIsDeleteModalOpen(false)}
-                className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-dark-input rounded-lg"
+                disabled={deleteLoading}
+                className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-dark-input rounded-lg disabled:opacity-50"
               >
                 Cancel
               </button>
               <button
                 onClick={handleDeleteConfirm}
-                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+                disabled={deleteLoading}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 flex items-center"
               >
-                Delete
+                {deleteLoading ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
+                    Deleting...
+                  </>
+                ) : (
+                  'Delete'
+                )}
               </button>
             </div>
           </div>
