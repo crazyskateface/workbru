@@ -33,6 +33,7 @@ Find your perfect workspace - A modern web application for discovering and revie
 - npm or yarn
 - Supabase account
 - Google Maps API key
+- Pica API key
 
 ### Environment Setup
 
@@ -42,6 +43,7 @@ Create a `.env` file in the root directory with the following variables:
 VITE_SUPABASE_URL=your_supabase_url
 VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
 VITE_GOOGLE_MAPS_API_KEY=your_google_maps_api_key
+PICA_API_KEY=your_pica_api_key
 ```
 
 ### Installation
