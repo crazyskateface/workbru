@@ -74,9 +74,8 @@ function App() {
           <Route path="/login" element={
             user ? <Navigate to="/app\" replace /> : <LoginPage />
           } />
-          <Route path="/register" element={
-            user ? <Navigate to="/app\" replace /> : <RegisterPage />
-          } />
+          {/* Redirect registration route to landing page */}
+          <Route path="/register" element={<Navigate to="/" replace />} />
           
           {/* User routes */}
           <Route path="/app" element={

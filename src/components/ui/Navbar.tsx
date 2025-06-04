@@ -47,14 +47,14 @@ const Navbar: React.FC = () => {
     }
   };
 
-  // Only show login/signup on non-root paths
+  // Only show login on non-root paths
   const showAuthButtons = location.pathname !== '/';
   
   return (
     <nav className={`fixed w-full z-10 transition-all duration-300 ${
       isScrolled || location.pathname !== '/' 
-        ? 'bg-white dark:bg-dark-card shadow-md py-4' // Increased from py-1.5 to py-4
-        : 'bg-transparent py-6' // Increased from py-2 to py-6
+        ? 'bg-white dark:bg-dark-card shadow-md py-4'
+        : 'bg-transparent py-6'
     }`}>
       <div className="container mx-auto px-4">
         <div className="flex justify-between items-center">
@@ -63,7 +63,7 @@ const Navbar: React.FC = () => {
             <img 
               src={darkMode ? "/workbru-logo_White-transparent-navbar.png" : "/workbru-logo_Purple-navbar.png"}
               alt="Workbru"
-              className="h-8" // Increased from h-6 to h-8
+              className="h-8"
             />
           </Link>
           
@@ -82,12 +82,6 @@ const Navbar: React.FC = () => {
                   className="text-gray-700 dark:text-gray-200 hover:text-primary-600 dark:hover:text-primary-400 transition-colors duration-200"
                 >
                   Login
-                </Link>
-                <Link 
-                  to="/register" 
-                  className="bg-primary-500 hover:bg-primary-600 text-white px-6 py-2.5 rounded-md transition-colors duration-200" // Increased padding
-                >
-                  Sign Up
                 </Link>
               </>
             )}
@@ -128,13 +122,6 @@ const Navbar: React.FC = () => {
                   onClick={() => setIsOpen(false)}
                 >
                   Login
-                </Link>
-                <Link 
-                  to="/register" 
-                  className="block py-2 text-gray-700 dark:text-gray-200 hover:text-primary-600 dark:hover:text-primary-400"
-                  onClick={() => setIsOpen(false)}
-                >
-                  Sign Up
                 </Link>
               </>
             )}
