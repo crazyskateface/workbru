@@ -66,16 +66,21 @@ function App() {
   return (
     <ThemeProvider>
       <AuthProvider>
-        <Routes>
-          {/* Public routes */}
+        <Routes>          {/* Public routes */}
           <Route path="/" element={
-            user ? <Navigate to="/app" replace /> : <LandingPage />
+            user ? (
+              user.role === 'admin' ? <Navigate to="/admin" replace /> : <Navigate to="/app" replace />
+            ) : <LandingPage />
+          } />          <Route path="/login" element={
+            user ? (
+              user.role === 'admin' ? <Navigate to="/admin" replace /> : <Navigate to="/app" replace />
+            ) : <LoginPage />
           } />
-          <Route path="/login" element={
-            user ? <Navigate to="/app" replace /> : <LoginPage />
+          <Route path="/register" element={
+            user ? (
+              user.role === 'admin' ? <Navigate to="/admin" replace /> : <Navigate to="/app" replace />
+            ) : <LandingPage />
           } />
-          {/* Redirect registration route to landing page */}
-          <Route path="/register" element={<Navigate to="/" replace />} />
           
           {/* User routes */}
           <Route path="/app" element={

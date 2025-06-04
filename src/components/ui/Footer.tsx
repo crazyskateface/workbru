@@ -9,7 +9,7 @@ const Footer: React.FC = () => {
   return (
     <footer className="bg-white dark:bg-dark-card shadow-inner pt-10 pb-6">
       <div className="container mx-auto px-4">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
           {/* Logo and tagline */}
           <div className="md:col-span-1">
             <Link to="/" className="flex items-center">
@@ -35,81 +35,29 @@ const Footer: React.FC = () => {
             </div>
           </div>
           
-          {/* Quick links */}
+          {/* Product */}
           <div>
             <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-200 uppercase tracking-wider">Product</h3>
-            <ul className="mt-4 space-y-2">
-              <li>
-                <Link to="/app" className="text-sm text-gray-600 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 transition-colors duration-200">
-                  Find Spaces
-                </Link>
-              </li>
-              <li>
-                <a href="#" className="text-sm text-gray-600 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 transition-colors duration-200">
-                  Features
-                </a>
-              </li>
-              <li>
-                <a href="#" className="text-sm text-gray-600 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 transition-colors duration-200">
-                  Pricing
-                </a>
-              </li>
-            </ul>
-          </div>
-          
-          {/* Company */}
-          <div>
-            <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-200 uppercase tracking-wider">Company</h3>
-            <ul className="mt-4 space-y-2">
-              <li>
-                <a href="#" className="text-sm text-gray-600 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 transition-colors duration-200">
-                  About
-                </a>
-              </li>
-              <li>
-                <a href="#" className="text-sm text-gray-600 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 transition-colors duration-200">
-                  Blog
-                </a>
-              </li>
-              <li>
-                <a href="#" className="text-sm text-gray-600 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 transition-colors duration-200">
-                  Careers
-                </a>
-              </li>
-              <li>
-                <a href="#" className="text-sm text-gray-600 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 transition-colors duration-200">
-                  Contact
-                </a>
-              </li>
-            </ul>
+            <p className="mt-4 text-sm text-gray-600 dark:text-gray-400">Coming Soon!</p>
           </div>
           
           {/* Support */}
           <div>
             <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-200 uppercase tracking-wider">Support</h3>
-            <ul className="mt-4 space-y-2">
-              <li>
-                <a href="#" className="text-sm text-gray-600 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 transition-colors duration-200">
-                  Help Center
-                </a>
-              </li>
-              <li>
-                <a href="#" className="text-sm text-gray-600 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 transition-colors duration-200">
-                  Privacy Policy
-                </a>
-              </li>
-              <li>
-                <a href="#" className="text-sm text-gray-600 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 transition-colors duration-200">
-                  Terms of Service
-                </a>
-              </li>
-            </ul>
           </div>
         </div>
         
         <div className="mt-10 pt-6 border-t border-gray-200 dark:border-dark-border">
           <p className="text-sm text-center text-gray-500 dark:text-gray-400">
-            &copy; {new Date().getFullYear()} Workbru. All rights reserved.
+            &copy; {new Date().getFullYear()} Workbru. All rights reserved. App crafted by{' '}
+            <a 
+              href="https://dragoonstudio.com" 
+              target="_blank" 
+              rel="noopener noreferrer" 
+              className="text-primary-600 dark:text-primary-400 hover:underline"
+            >
+              Dragoon Studio
+            </a>
           </p>
         </div>
       </div>
