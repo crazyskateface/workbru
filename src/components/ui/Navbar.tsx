@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Menu, X, Sun, Moon, MapPin } from 'lucide-react';
+import { Menu, X, Sun, Moon } from 'lucide-react';
 import { useTheme } from '../../contexts/ThemeContext';
 import anime from 'animejs';
 
@@ -10,7 +10,6 @@ const Navbar: React.FC = () => {
   const location = useLocation();
   const { darkMode, toggleDarkMode } = useTheme();
   
-  // Handle scroll effect
   useEffect(() => {
     const handleScroll = () => {
       if (window.scrollY > 10) {
@@ -24,7 +23,6 @@ const Navbar: React.FC = () => {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
   
-  // Animate logo on mount
   useEffect(() => {
     anime({
       targets: '.logo',
@@ -38,7 +36,6 @@ const Navbar: React.FC = () => {
   
   const toggleMenu = () => {
     setIsOpen(!isOpen);
-    // Animate mobile menu
     if (!isOpen) {
       anime({
         targets: '.mobile-menu',
@@ -63,8 +60,11 @@ const Navbar: React.FC = () => {
         <div className="flex justify-between items-center">
           {/* Logo */}
           <Link to="/" className="logo flex items-center">
-            <MapPin className="h-6 w-6 text-primary-600 dark:text-primary-400 mr-2" />
-            <span className="text-2xl font-bold text-primary-700 dark:text-primary-300">Workbru</span>
+            <img 
+              src={darkMode ? "/workbru-logo_White-transparent.svg" : "/workbru-logo_Purple.svg"}
+              alt="Workbru"
+              className="h-8"
+            />
           </Link>
           
           {/* Desktop Navigation */}
@@ -85,7 +85,7 @@ const Navbar: React.FC = () => {
                 </Link>
                 <Link 
                   to="/register" 
-                  className="bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-md transition-colors duration-200"
+                  className="bg-primary-500 hover:bg-primary-600 text-white px-4 py-2 rounded-md transition-colors duration-200"
                 >
                   Sign Up
                 </Link>

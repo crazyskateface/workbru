@@ -14,7 +14,6 @@ const LandingPage: React.FC = () => {
   const heroRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    // Animate hero section on load
     if (heroRef.current) {
       anime({
         targets: heroRef.current.querySelectorAll('.animate-item'),
@@ -44,7 +43,6 @@ const LandingPage: React.FC = () => {
       setSuccess(true);
       setEmail('');
 
-      // Animate success message
       anime({
         targets: '.success-message',
         scale: [0.9, 1],
@@ -57,7 +55,6 @@ const LandingPage: React.FC = () => {
       console.error('Subscription error:', err);
       setError(err.message || 'Failed to subscribe. Please try again.');
 
-      // Shake animation for error
       anime({
         targets: '.subscription-form',
         translateX: [0, -10, 10, -10, 10, 0],
@@ -74,11 +71,11 @@ const LandingPage: React.FC = () => {
       <Navbar />
       
       {/* Hero Section */}
-      <section ref={heroRef} className="pt-32 pb-20 px-4 sm:px-6 lg:px-8 bg-gradient-to-br from-primary-900 via-primary-800 to-purple-900 dark:from-primary-950 dark:via-primary-900 dark:to-purple-950">
+      <section ref={heroRef} className="pt-32 pb-20 px-4 sm:px-6 lg:px-8 bg-gradient-to-br from-primary-900 via-primary-800 to-secondary-500 dark:from-dark-bg dark:via-dark-card dark:to-secondary-900">
         <div className="container mx-auto">
           <div className="max-w-3xl mx-auto text-center">
             <h1 className="animate-item text-4xl sm:text-5xl md:text-6xl font-bold text-white leading-tight mb-6">
-              Find Your Perfect <span className="text-primary-300">Workspace</span>
+              Find Your Perfect <span className="text-accent-green-400">Workspace</span>
             </h1>
             <p className="animate-item text-xl text-gray-200 mb-10 max-w-2xl mx-auto">
               Coming soon: Discover coffee shops, coworking spaces, and more with all the amenities you need to be productive on the go.
@@ -89,7 +86,7 @@ const LandingPage: React.FC = () => {
               {success ? (
                 <div className="success-message bg-white/10 backdrop-blur-sm rounded-lg p-6 text-white">
                   <div className="flex items-center justify-center mb-4">
-                    <div className="bg-green-500 rounded-full p-2">
+                    <div className="bg-accent-green-500 rounded-full p-2">
                       <CheckCircle className="h-6 w-6" />
                     </div>
                   </div>
@@ -112,7 +109,7 @@ const LandingPage: React.FC = () => {
                     <button
                       type="submit"
                       disabled={loading}
-                      className="px-6 py-3 bg-primary-600 text-white rounded-r-lg hover:bg-primary-700 transition-colors duration-200 flex items-center"
+                      className="px-6 py-3 bg-accent-pink-500 text-white rounded-r-lg hover:bg-accent-pink-600 transition-colors duration-200 flex items-center"
                     >
                       {loading ? (
                         <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
@@ -133,10 +130,10 @@ const LandingPage: React.FC = () => {
 
             {/* Preview Image */}
             <div className="animate-item mt-16 max-w-5xl mx-auto relative">
-              <div className="bg-gradient-to-r from-primary-500/20 to-purple-500/20 rounded-xl p-1 backdrop-blur-sm">
+              <div className="bg-gradient-to-r from-accent-green-500/20 to-accent-pink-500/20 rounded-xl p-1 backdrop-blur-sm">
                 <div className="rounded-lg overflow-hidden shadow-2xl">
                   <img 
-                    src="https://images.pexels.com/photos/7070/space-desk-workspace-coworking.jpg" 
+                    src="https://images.pexels.com/photos/7014924/pexels-photo-7014924.jpeg" 
                     alt="Workbru App Preview" 
                     className="w-full h-auto object-cover"
                   />
