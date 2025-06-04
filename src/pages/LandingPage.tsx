@@ -109,7 +109,7 @@ const LandingPage: React.FC = () => {
                     <button
                       type="submit"
                       disabled={loading}
-                      className="px-6 py-3 bg-accent-pink-500 text-white rounded-r-lg hover:bg-accent-pink-600 transition-colors duration-200 flex items-center"
+                      className="px-6 py-3 bg-primary-600 text-white rounded-r-lg hover:bg-primary-700 transition-colors duration-200 flex items-center"
                     >
                       {loading ? (
                         <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
@@ -133,8 +133,8 @@ const LandingPage: React.FC = () => {
               <div className="bg-primary-100/50 dark:bg-white/10 rounded-xl p-1 backdrop-blur-sm">
                 <div className="rounded-lg overflow-hidden shadow-2xl">
                   <img 
-                    src="https://images.pexels.com/photos/7014924/pexels-photo-7014924.jpeg" 
-                    alt="Workbru App Preview" 
+                    src="https://images.pexels.com/photos/4427622/pexels-photo-4427622.jpeg" 
+                    alt="Person working in a cafe" 
                     className="w-full h-auto object-cover"
                   />
                 </div>
