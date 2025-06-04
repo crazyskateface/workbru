@@ -67,7 +67,7 @@ const LandingPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-primary-500">
+    <div className="min-h-screen flex flex-col bg-gradient-to-b from-primary-500 via-primary-700 to-primary-950">
       <Navbar />
       
       {/* Hero Section */}
