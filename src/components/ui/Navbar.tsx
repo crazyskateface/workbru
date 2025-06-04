@@ -53,8 +53,8 @@ const Navbar: React.FC = () => {
   return (
     <nav className={`fixed w-full z-10 transition-all duration-300 ${
       isScrolled || location.pathname !== '/' 
-        ? 'bg-white dark:bg-dark-card shadow-md py-2' 
-        : 'bg-transparent py-4'
+        ? 'bg-white dark:bg-dark-card shadow-md py-1.5' 
+        : 'bg-transparent py-2'
     }`}>
       <div className="container mx-auto px-4">
         <div className="flex justify-between items-center">
@@ -63,7 +63,7 @@ const Navbar: React.FC = () => {
             <img 
               src={darkMode ? "/workbru-logo_White-transparent.svg" : "/workbru-logo_Purple.svg"}
               alt="Workbru"
-              className="h-8"
+              className="h-6" // Reduced from h-8 to h-6
             />
           </Link>
           
@@ -85,7 +85,7 @@ const Navbar: React.FC = () => {
                 </Link>
                 <Link 
                   to="/register" 
-                  className="bg-primary-500 hover:bg-primary-600 text-white px-4 py-2 rounded-md transition-colors duration-200"
+                  className="bg-primary-500 hover:bg-primary-600 text-white px-4 py-1.5 rounded-md transition-colors duration-200"
                 >
                   Sign Up
                 </Link>
