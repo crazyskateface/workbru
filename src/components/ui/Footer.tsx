@@ -1,8 +1,11 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { MapPin, Github as GitHub, Twitter, Instagram } from 'lucide-react';
+import { Github as GitHub, Twitter, Instagram } from 'lucide-react';
+import { useTheme } from '../../contexts/ThemeContext';
 
 const Footer: React.FC = () => {
+  const { darkMode } = useTheme();
+
   return (
     <footer className="bg-white dark:bg-dark-card shadow-inner pt-10 pb-6">
       <div className="container mx-auto px-4">
@@ -10,8 +13,11 @@ const Footer: React.FC = () => {
           {/* Logo and tagline */}
           <div className="md:col-span-1">
             <Link to="/" className="flex items-center">
-              <MapPin className="h-6 w-6 text-primary-600 dark:text-primary-400 mr-2" />
-              <span className="text-xl font-bold text-primary-700 dark:text-primary-300">Workbru</span>
+              <img 
+                src={darkMode ? "/workbru-logo_White-transparent-navbar.png" : "/workbru-logo_Purple-navbar.png"}
+                alt="Workbru"
+                className="h-8"
+              />
             </Link>
             <p className="mt-4 text-sm text-gray-600 dark:text-gray-400">
               Find the perfect workspace for your productivity needs, anywhere you go.
