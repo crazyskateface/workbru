@@ -61,7 +61,7 @@ const Navbar: React.FC = () => {
           {/* Logo */}
           <Link to="/" className="logo flex items-center">
             <img 
-              src={darkMode ? "/workbru-logo_White-transparent.svg" : "/workbru-logo_Purple.svg"}
+              src={darkMode ? "/workbru-logo_White-transparent-navbar.png" : "/workbru-logo_Purple-navbar.png"}
               alt="Workbru"
               className="h-8" // Increased from h-6 to h-8
             />
