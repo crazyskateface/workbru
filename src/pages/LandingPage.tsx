@@ -67,11 +67,11 @@ const LandingPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-gray-50 dark:bg-dark-bg transition-colors duration-300">
+    <div className="min-h-screen flex flex-col bg-primary-500">
       <Navbar />
       
       {/* Hero Section */}
-      <section ref={heroRef} className="pt-32 pb-20 px-4 sm:px-6 lg:px-8 bg-gradient-to-br from-primary-900 via-primary-800 to-secondary-500 dark:from-dark-bg dark:via-dark-card dark:to-secondary-900">
+      <section ref={heroRef} className="pt-32 pb-20 px-4 sm:px-6 lg:px-8">
         <div className="container mx-auto">
           <div className="max-w-3xl mx-auto text-center">
             <h1 className="animate-item text-4xl sm:text-5xl md:text-6xl font-bold text-white leading-tight mb-6">
@@ -103,7 +103,7 @@ const LandingPage: React.FC = () => {
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
                         placeholder="Enter your email"
-                        className="w-full pl-10 pr-4 py-3 rounded-l-lg focus:outline-none focus:ring-2 focus:ring-primary-500 border-0"
+                        className="w-full pl-10 pr-4 py-3 rounded-l-lg focus:outline-none focus:ring-2 focus:ring-primary-300 border-0 bg-white/10 backdrop-blur-sm text-white placeholder-gray-300"
                       />
                     </div>
                     <button
@@ -130,7 +130,7 @@ const LandingPage: React.FC = () => {
 
             {/* Preview Image */}
             <div className="animate-item mt-16 max-w-5xl mx-auto relative">
-              <div className="bg-gradient-to-r from-accent-green-500/20 to-accent-pink-500/20 rounded-xl p-1 backdrop-blur-sm">
+              <div className="bg-white/10 rounded-xl p-1 backdrop-blur-sm">
                 <div className="rounded-lg overflow-hidden shadow-2xl">
                   <img 
                     src="https://images.pexels.com/photos/7014924/pexels-photo-7014924.jpeg" 
