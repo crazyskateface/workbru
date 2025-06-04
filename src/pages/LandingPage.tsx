@@ -133,7 +133,7 @@ const LandingPage: React.FC = () => {
               <div className="bg-primary-100/50 dark:bg-white/10 rounded-xl p-1 backdrop-blur-sm">
                 <div className="rounded-lg overflow-hidden shadow-2xl">
                   <img 
-                    src="https://images.pexels.com/photos/4427622/pexels-photo-4427622.jpeg" 
+                    src="/guyincafewindow.png"
                     alt="Person working in a cafe" 
                     className="w-full h-auto object-cover"
                   />
